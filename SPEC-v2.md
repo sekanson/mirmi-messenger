@@ -53,12 +53,35 @@ New: expandable messenger panel with:
 - "Mirmi Group" chat = full group sync (current behavior)
 - This makes ME the brain, not Groq
 
-### 6. Orb Redesign
-- Keep the floating orb as the trigger
-- Click → opens the messenger panel (bigger, proper messenger UI)
-- Panel: 380px wide, 580px tall (like a mobile messenger)
-- Smooth open/close animation
-- Collapse back to orb
+### 6. Three-State UI (NEW)
+Three states, cycle through them:
+
+**State 1: Orb only** (default/collapsed)
+- Just the floating Mirmi avatar (current orb with all animations)
+- Click once → goes to State 2
+- Draggable in this state
+
+**State 2: Mini window** (compact messenger)
+- 380x580px panel attached to orb
+- Sidebar + chat area (messenger layout)
+- Expand button (⤢) in top-right corner → goes to State 3
+- Close button (×) → back to State 1
+- Draggable orb still visible/attached
+
+**State 3: Full screen**
+- Full viewport overlay (like opening an app)
+- Same messenger UI but spacious - sidebar 240px, chat fills rest
+- Keyboard shortcut: Escape → back to State 2
+- Collapse button → back to State 2
+- NOT draggable (it's full screen)
+
+### 7. Draggable Orb (NEW - techs request)
+- User can click and DRAG the orb to reposition it anywhere on screen
+- Distinguish between click (open chat) and drag (move): if mouse moves >5px during mousedown, treat as drag not click
+- Position persists via chrome.storage.local (survives page navigation)
+- Default position: bottom-right (existing)
+- Orb stays within viewport bounds (clamp to edges)
+- Messenger panel opens relative to orb position (smart positioning: if orb is on left half of screen, panel opens to the right; if right half, panel opens to the left)
 
 ## Architecture
 
