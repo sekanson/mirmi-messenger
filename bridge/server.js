@@ -164,7 +164,7 @@ app.post('/api/speak', authMiddleware, async (req, res) => {
 
 // POST /api/message — ingest a Telegram message
 app.post('/api/message', authMiddleware, (req, res) => {
-  const { id, from, text, timestamp, chatId, replyTo } = req.body;
+  const { id, from, text, timestamp, chatId, replyTo, conversationId } = req.body;
 
   if (!id || !from || !text || !timestamp || !chatId) {
     return res.status(400).json({ error: 'id, from, text, timestamp, chatId required' });
@@ -172,6 +172,7 @@ app.post('/api/message', authMiddleware, (req, res) => {
 
   const msg = { id, from, text, timestamp, chatId };
   if (replyTo) msg.replyTo = replyTo;
+  if (conversationId) msg.conversationId = conversationId;
 
   messages.push(msg);
   if (messages.length > 100) messages.splice(0, messages.length - 100);
@@ -187,8 +188,11 @@ app.post('/api/message', authMiddleware, (req, res) => {
 app.get('/api/messages', authMiddleware, (req, res) => {
   const since = Number(req.query.since) || 0;
   const limit = Math.min(Number(req.query.limit) || 50, 100);
+  const conversationId = req.query.conversationId;
 
-  const filtered = messages.filter(m => m.timestamp > since).slice(-limit);
+  let filtered = messages.filter(m => m.timestamp > since);
+  if (conversationId) filtered = filtered.filter(m => m.conversationId === conversationId);
+  filtered = filtered.slice(-limit);
   res.json({ messages: filtered });
 });
 
@@ -211,6 +215,96 @@ app.get('/api/messages/stream', authMiddleware, (req, res) => {
   req.on('close', () => {
     clearInterval(pingInterval);
     sseClients = sseClients.filter(c => c !== res);
+  });
+});
+
+// POST /api/upload-image — forward image to Telegram
+app.post('/api/upload-image', authMiddleware, async (req, res) => {
+  const { dataUrl, fileName, sessionId } = req.body;
+
+  if (!dataUrl) {
+    return res.status(400).json({ error: 'dataUrl required' });
+  }
+
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const threadId = process.env.TELEGRAM_THREAD_ID;
+
+  if (!botToken || !chatId) {
+    return res.status(500).json({ error: 'Telegram not configured' });
+  }
+
+  try {
+    // Extract base64 data
+    const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    // Determine mime type
+    const mimeMatch = dataUrl.match(/^data:(image\/\w+);base64,/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+    const ext = mimeType.split('/')[1] || 'png';
+    const name = fileName || ('image.' + ext);
+
+    // Build multipart form data manually
+    const boundary = '----MirmiBoundary' + Date.now();
+    const parts = [];
+
+    // chat_id
+    parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n${chatId}`);
+
+    // message_thread_id
+    if (threadId) {
+      parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="message_thread_id"\r\n\r\n${threadId}`);
+    }
+
+    // photo file
+    parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="photo"; filename="${name}"\r\nContent-Type: ${mimeType}\r\n\r\n`);
+
+    const header = Buffer.from(parts.join('\r\n') + '\r\n', 'utf-8');
+    const footer = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf-8');
+    const body = Buffer.concat([header, buffer, footer]);
+
+    const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': body.length.toString()
+      },
+      body: body
+    });
+
+    const tgData = await tgRes.json();
+
+    if (!tgData.ok) {
+      console.error('Telegram sendPhoto error:', tgData);
+      return res.status(502).json({ error: 'Telegram upload failed', detail: tgData.description });
+    }
+
+    // Try to get file URL
+    let url = '';
+    if (tgData.result && tgData.result.photo && tgData.result.photo.length > 0) {
+      const largest = tgData.result.photo[tgData.result.photo.length - 1];
+      const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${largest.file_id}`);
+      const fileData = await fileRes.json();
+      if (fileData.ok && fileData.result.file_path) {
+        url = `https://api.telegram.org/file/bot${botToken}/${fileData.result.file_path}`;
+      }
+    }
+
+    res.json({ ok: true, url });
+  } catch (err) {
+    console.error('Upload image error:', err.message);
+    res.status(500).json({ error: 'Image upload failed' });
+  }
+});
+
+// GET /api/conversations — hardcoded conversation list
+app.get('/api/conversations', authMiddleware, (req, res) => {
+  res.json({
+    conversations: [
+      { id: 'group', name: 'Mirmi Group', icon: 'M', lastMessage: '', unread: 0 },
+      { id: 'dm', name: 'Mirmi DM', icon: 'M', lastMessage: '', unread: 0 }
+    ]
   });
 });
 

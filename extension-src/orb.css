@@ -1,10 +1,9 @@
-/* ── Mirmi Messenger Extension - orb.css ─────────────────── */
-/* Sphere CSS extracted VERBATIM from mirmi-prototype.html    */
-/* Extension layout styles for trigger, overlay, chat UI      */
+/* ── Mirmi Messenger v2 - orb.css ─────────────────────────── */
+/* Full messenger layout + sphere CSS from prototype            */
 
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=Nunito:wght@400;700;900&display=swap');
 
-/* ── Tokens (from prototype :root) ──────────────────────── */
+/* ── Tokens ────────────────────────────────────────────────── */
 :host {
   --bg0: #030610;
   --bg1: #07102a;
@@ -34,9 +33,9 @@
   padding: 0;
 }
 
-/* ══════════════════════════════════════════════════════════ */
-/* MINI-MIRMI SPHERE — exact from prototype lines 536-589   */
-/* ══════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════ */
+/* MINI-MIRMI SPHERE — exact from prototype                     */
+/* ══════════════════════════════════════════════════════════════ */
 .mini-mirmi {
   position: relative;
   flex-shrink: 0;
@@ -80,23 +79,23 @@
   position: absolute; inset: 0; z-index: 8; pointer-events: none; overflow: visible;
 }
 
-/* talk rings on mini — exact from prototype */
+/* talk rings */
 .mini-mirmi .mm-talk-rings { position: absolute; inset: 0; border-radius: 50%; z-index: 3; pointer-events: none; opacity: 0; transition: opacity .4s; }
 .mini-mirmi .mm-talk-rings.visible { opacity: 1; }
 .mini-mirmi .mm-talk-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(103,232,249,.3); animation: talkRingOut 2.2s ease-out infinite; opacity: 0; }
 .mini-mirmi .mm-talk-ring:nth-child(2) { animation-delay: .73s; }
 .mini-mirmi .mm-talk-ring:nth-child(3) { animation-delay: 1.46s; }
 
-/* listen rings on mini — exact from prototype */
+/* listen rings */
 .mini-mirmi .mm-listen-rings { position: absolute; inset: 0; border-radius: 50%; z-index: 3; pointer-events: none; opacity: 0; transition: opacity .4s; }
 .mini-mirmi .mm-listen-rings.visible { opacity: 1; }
 .mini-mirmi .mm-listen-ring { position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(253,230,138,.25); animation: listenRingIn 2.4s ease-in-out infinite; opacity: 0; }
 .mini-mirmi .mm-listen-ring:nth-child(2) { animation-delay: .8s; }
 .mini-mirmi .mm-listen-ring:nth-child(3) { animation-delay: 1.6s; }
 
-/* ══════════════════════════════════════════════════════════ */
-/* KEYFRAMES — verbatim from prototype                      */
-/* ══════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════ */
+/* KEYFRAMES                                                     */
+/* ══════════════════════════════════════════════════════════════ */
 @keyframes ambientPulse {
   0%, 100% { transform: scale(1); opacity: .5; }
   50% { transform: scale(1.07); opacity: 1; }
@@ -110,10 +109,6 @@
   20% { opacity: .55; }
   70% { opacity: .3; }
   100% { transform: scale(1.02); opacity: 0; }
-}
-@keyframes rainbowHue {
-  0% { filter: hue-rotate(0deg); }
-  100% { filter: hue-rotate(360deg); }
 }
 @keyframes msgIn {
   from { opacity: 0; transform: translateY(12px); }
@@ -136,11 +131,73 @@
   50% { transform: translateY(-3px); }
 }
 
-/* ══════════════════════════════════════════════════════════ */
-/* EXTENSION LAYOUT — trigger, overlay, chat UI              */
-/* ══════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════ */
+/* IDENTITY PICKER                                               */
+/* ══════════════════════════════════════════════════════════════ */
+.mirmi-identity-overlay {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 280px;
+  z-index: 2147483647;
+  border-radius: 20px;
+  background: var(--bg0);
+  border: 1px solid var(--border-hi);
+  box-shadow: 0 12px 48px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04);
+  font-family: 'Sora', sans-serif;
+  color: var(--text-primary);
+  overflow: hidden;
+  animation: msgIn .3s ease both;
+}
+.mirmi-identity-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 20px 24px;
+  gap: 16px;
+}
+.mirmi-identity-orb {
+  width: 64px;
+  height: 64px;
+}
+.mirmi-identity-title {
+  font-size: .95rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: .02em;
+}
+.mirmi-identity-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.mirmi-identity-btn {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-hi);
+  background: var(--surface);
+  font-family: 'Sora', sans-serif;
+  font-size: .85rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all .2s;
+}
+.mirmi-identity-btn:hover {
+  background: var(--surface-hover);
+  border-color: rgba(56,189,248,.35);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(56,189,248,.1);
+}
+.mirmi-identity-btn:active {
+  transform: scale(.97);
+}
 
-/* ── Collapsed Orb (FAB) ────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════ */
+/* FLOATING ORB TRIGGER                                          */
+/* ══════════════════════════════════════════════════════════════ */
 #mirmi-orb-trigger {
   position: fixed;
   bottom: 24px;
@@ -162,15 +219,17 @@
   transition: all .3s ease;
 }
 
-/* ── Chat Overlay ────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════ */
+/* MESSENGER PANEL                                               */
+/* ══════════════════════════════════════════════════════════════ */
 #mirmi-chat-overlay {
   position: fixed;
   bottom: 24px;
   right: 24px;
   width: 380px;
-  height: 520px;
+  height: 580px;
   z-index: 2147483647;
-  border-radius: 24px;
+  border-radius: 20px;
   background: var(--bg0);
   border: 1px solid var(--border);
   box-shadow: 0 12px 48px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.04);
@@ -190,34 +249,192 @@
   transform: translateY(0) scale(1);
 }
 
-/* ── Mood Background Canvas ─────────────────────────────── */
+/* ── Mood Background Canvas ─────────────────────────────────── */
 #mirmi-mood-bg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  border-radius: 24px;
+  border-radius: 20px;
   z-index: 0;
   pointer-events: none;
 }
 
-/* ── Chat Header ─────────────────────────────────────────── */
-.mirmi-chat-header {
+/* ══════════════════════════════════════════════════════════════ */
+/* MESSENGER LAYOUT: sidebar + chat                              */
+/* ══════════════════════════════════════════════════════════════ */
+.mirmi-messenger-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── SIDEBAR ────────────────────────────────────────────────── */
+.mirmi-sidebar {
+  width: 120px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: rgba(0,0,0,.15);
+}
+
+.mirmi-sidebar-header {
+  display: flex;
   align-items: center;
-  padding: 20px 16px 12px;
+  gap: 6px;
+  padding: 14px 10px 10px;
   border-bottom: 1px solid var(--border);
-  position: relative;
+}
+.mirmi-sidebar-logo {
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
-  z-index: 1;
+}
+.mirmi-sidebar-title {
+  font-family: 'Sora', sans-serif;
+  font-size: .7rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: .06em;
+}
+
+.mirmi-conversation-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.mirmi-conversation-list::-webkit-scrollbar { width: 0; }
+
+/* ── Conversation card ──────────────────────────────────────── */
+.mirmi-conv-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px;
+  cursor: pointer;
+  transition: background .15s;
+  position: relative;
+}
+.mirmi-conv-card:hover {
+  background: var(--surface-hover);
+}
+.mirmi-conv-card.active {
+  background: rgba(0,93,255,.1);
+  border-right: 2px solid var(--send-bg);
+}
+
+.mirmi-conv-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Sora', sans-serif;
+  font-size: .6rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.mirmi-conv-icon-group {
+  background: rgba(52,211,153,.15);
+  color: #34d399;
+  border: 1px solid rgba(52,211,153,.25);
+}
+.mirmi-conv-icon-dm {
+  background: rgba(129,140,248,.15);
+  color: #818cf8;
+  border: 1px solid rgba(129,140,248,.25);
+}
+
+.mirmi-conv-info {
+  flex: 1;
+  min-width: 0;
+  display: none; /* Hidden in compact sidebar */
+}
+.mirmi-conv-name {
+  font-size: .55rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  margin-top: 2px;
+}
+
+/* Show name below icon in compact mode */
+.mirmi-conv-card {
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 4px;
+}
+.mirmi-conv-card.active {
+  border-right: none;
+  background: rgba(0,93,255,.12);
+  border-radius: 8px;
+  margin: 0 4px;
+}
+.mirmi-conv-card:not(.active) {
+  border-radius: 8px;
+  margin: 0 4px;
+}
+
+.mirmi-conv-badge {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background: #ef4444;
+  color: white;
+  font-size: .5rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  font-family: 'Sora', sans-serif;
+}
+
+.mirmi-conv-preview {
+  font-size: .5rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: none; /* Hidden in compact sidebar */
+}
+
+/* ══════════════════════════════════════════════════════════════ */
+/* CHAT AREA                                                     */
+/* ══════════════════════════════════════════════════════════════ */
+.mirmi-chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ── Chat Header ────────────────────────────────────────────── */
+.mirmi-chat-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  position: relative;
+  min-height: 52px;
 }
 .mirmi-chat-close {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 28px;
-  height: 28px;
+  top: 10px;
+  right: 8px;
+  width: 26px;
+  height: 26px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: transparent;
@@ -227,94 +444,76 @@
   align-items: center;
   justify-content: center;
   transition: all .2s;
+  z-index: 2;
 }
 .mirmi-chat-close:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
 }
-.mirmi-chat-close svg { width: 14px; height: 14px; }
+.mirmi-chat-close svg { width: 12px; height: 12px; }
 
-/* ── Header Orb (100px) ──────────────────────────────────── */
-.mirmi-header-orb {
-  position: relative;
-  width: 100px;
-  height: 100px;
-  margin-bottom: 8px;
+.mirmi-chat-header-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-
-/* ── Mirmi label ─────────────────────────────────────────── */
-.mirmi-label {
-  text-align: center;
+.mirmi-chat-header-orb {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+.mirmi-chat-header-text {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
+  gap: 1px;
 }
-.mirmi-name {
+.mirmi-chat-header-name {
   font-family: 'Sora', sans-serif;
-  font-size: 1.1rem;
+  font-size: .78rem;
   font-weight: 600;
   color: var(--text-primary);
-  letter-spacing: .04em;
+  letter-spacing: .02em;
 }
 .mirmi-state-text {
-  font-size: .65rem;
+  font-size: .55rem;
   font-weight: 500;
-  letter-spacing: .26em;
+  letter-spacing: .2em;
   text-transform: uppercase;
   color: var(--text-muted);
   transition: color .5s;
 }
 
-/* ── Chat Messages Area ──────────────────────────────────── */
+/* ── Messages Area ──────────────────────────────────────────── */
 .mirmi-messages {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 12px 16px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 2px;
   scroll-behavior: smooth;
-  z-index: 1;
 }
-.mirmi-messages::-webkit-scrollbar { width: 0; }
+.mirmi-messages::-webkit-scrollbar { width: 3px; }
+.mirmi-messages::-webkit-scrollbar-track { background: transparent; }
+.mirmi-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 3px; }
 
 .msg-row {
   display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  padding: 4px 0;
-  animation: msgIn .35s cubic-bezier(.34,1.4,.64,1) both;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 3px 0;
+  animation: msgIn .3s cubic-bezier(.34,1.4,.64,1) both;
+  max-width: 100%;
 }
 .msg-row.user { flex-direction: row-reverse; }
 
-.msg-bubble {
-  max-width: 72%;
-  padding: 11px 15px;
-  border-radius: 18px;
-  font-size: .875rem;
-  line-height: 1.6;
-  font-weight: 300;
-}
-.msg-row.user .msg-bubble {
-  background: var(--bubble-user);
-  border: 1px solid rgba(0,93,255,.2);
-  color: var(--text-primary);
-  border-bottom-right-radius: 5px;
-}
-.msg-row.mirmi .msg-bubble {
-  background: var(--bubble-mirmi);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  border-bottom-left-radius: 5px;
-}
-
-/* Mini orb in chat messages */
+/* ── Avatars ────────────────────────────────────────────────── */
 .msg-avatar {
   width: 24px;
   height: 24px;
   flex-shrink: 0;
+  margin-top: 14px;
 }
 
 .user-av {
@@ -322,30 +521,158 @@
   height: 24px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: rgba(0,93,255,.15);
-  border: 1px solid rgba(0,93,255,.25);
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-top: 14px;
 }
 .user-av-letter {
   font-size: .55rem;
   font-weight: 600;
-  color: rgba(100,160,255,.7);
   font-family: 'Sora', sans-serif;
   letter-spacing: .04em;
 }
 
-/* ── Typing indicator ────────────────────────────────────── */
+/* User-specific avatar colors */
+.user-av.av-hammad { background: rgba(239,68,68,.15); border: 1px solid rgba(239,68,68,.3); }
+.user-av.av-hammad .user-av-letter { color: #f87171; }
+.user-av.av-tiago { background: rgba(168,85,247,.15); border: 1px solid rgba(168,85,247,.3); }
+.user-av.av-tiago .user-av-letter { color: #c084fc; }
+.user-av.av-aamir { background: rgba(34,211,238,.15); border: 1px solid rgba(34,211,238,.3); }
+.user-av.av-aamir .user-av-letter { color: #22d3ee; }
+.user-av.av-default { background: rgba(0,93,255,.15); border: 1px solid rgba(0,93,255,.25); }
+.user-av.av-default .user-av-letter { color: rgba(100,160,255,.7); }
+
+/* Mirmi avatar (green dot) */
+.mirmi-av {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: rgba(52,211,153,.15);
+  border: 1px solid rgba(52,211,153,.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 14px;
+}
+.mirmi-av-letter {
+  font-size: .55rem;
+  font-weight: 700;
+  color: #34d399;
+  font-family: 'Sora', sans-serif;
+}
+
+/* ── Message content column ─────────────────────────────────── */
+.msg-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 80%;
+  min-width: 0;
+}
+.msg-row.user .msg-col {
+  align-items: flex-end;
+}
+
+.msg-sender {
+  font-size: .55rem;
+  font-weight: 500;
+  letter-spacing: .04em;
+  padding: 0 4px;
+}
+.msg-sender.sender-hammad { color: #f87171; }
+.msg-sender.sender-tiago { color: #c084fc; }
+.msg-sender.sender-aamir { color: #22d3ee; }
+.msg-sender.sender-mirmi { color: #34d399; }
+.msg-sender.sender-default { color: var(--text-muted); }
+
+/* ── Bubbles ────────────────────────────────────────────────── */
+.msg-bubble {
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: 16px;
+  font-size: .8rem;
+  line-height: 1.55;
+  font-weight: 300;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+.msg-row.user .msg-bubble {
+  background: var(--bubble-user);
+  border: 1px solid rgba(0,93,255,.2);
+  color: var(--text-primary);
+  border-bottom-right-radius: 4px;
+}
+.msg-row.mirmi .msg-bubble,
+.msg-row.other .msg-bubble {
+  background: var(--bubble-mirmi);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-bottom-left-radius: 4px;
+}
+
+/* Mirmi messages have green-tinted bubble */
+.msg-row.mirmi .msg-bubble {
+  background: rgba(52,211,153,.04);
+  border-color: rgba(52,211,153,.1);
+}
+
+/* ── Timestamps ─────────────────────────────────────────────── */
+.msg-time {
+  font-size: .45rem;
+  color: var(--text-muted);
+  padding: 0 4px;
+  margin-top: 1px;
+}
+.msg-row.user .msg-time {
+  text-align: right;
+}
+
+/* ── Image in bubble ────────────────────────────────────────── */
+.msg-image {
+  max-width: 180px;
+  max-height: 180px;
+  border-radius: 10px;
+  margin-top: 4px;
+  cursor: pointer;
+  transition: transform .2s;
+}
+.msg-image:hover {
+  transform: scale(1.02);
+}
+
+/* ── Upload state ───────────────────────────────────────────── */
+.msg-uploading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: .75rem;
+  color: var(--text-muted);
+}
+.upload-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Typing indicator ───────────────────────────────────────── */
 .typing-indicator {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 14px 18px;
+  padding: 8px 12px;
 }
 .typing-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--text-muted);
   animation: typingBounce 1.2s ease-in-out infinite;
@@ -353,17 +680,18 @@
 .typing-dot:nth-child(2) { animation-delay: .2s; }
 .typing-dot:nth-child(3) { animation-delay: .4s; }
 
-/* ── Input Area ──────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════ */
+/* INPUT AREA                                                    */
+/* ══════════════════════════════════════════════════════════════ */
 .mirmi-input-zone {
-  padding: 8px 12px 12px;
+  padding: 6px 8px 10px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
-  z-index: 1;
 }
 .mirmi-input-shell {
   background: var(--input-bg);
   border: 1px solid var(--input-border);
-  border-radius: 20px;
+  border-radius: 18px;
   transition: all .25s;
   overflow: hidden;
 }
@@ -374,9 +702,9 @@
 .mirmi-input-row {
   display: flex;
   align-items: center;
-  padding: 4px 4px 4px 14px;
-  gap: 4px;
-  min-height: 44px;
+  padding: 3px 3px 3px 4px;
+  gap: 2px;
+  min-height: 40px;
 }
 .mirmi-chat-input {
   flex: 1;
@@ -384,13 +712,13 @@
   border: none;
   outline: none;
   font-family: 'Sora', sans-serif;
-  font-size: .85rem;
+  font-size: .8rem;
   font-weight: 300;
   color: var(--text-primary);
   resize: none;
   line-height: 1.5;
-  max-height: 80px;
-  min-height: 20px;
+  max-height: 72px;
+  min-height: 18px;
   overflow-y: auto;
   padding: 4px 0;
 }
@@ -400,12 +728,12 @@
 .mirmi-input-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
 }
 
 .mirmi-action-btn {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   border-radius: 8px;
   border: none;
   background: transparent;
@@ -415,12 +743,13 @@
   align-items: center;
   justify-content: center;
   transition: all .2s;
+  flex-shrink: 0;
 }
 .mirmi-action-btn:hover {
   background: var(--surface-hover);
   color: var(--text-secondary);
 }
-.mirmi-action-btn svg { width: 15px; height: 15px; }
+.mirmi-action-btn svg { width: 14px; height: 14px; }
 .mirmi-action-btn.mic-on {
   color: rgba(253,230,138,.9) !important;
   background: rgba(253,230,138,.08);
@@ -430,12 +759,12 @@
 }
 
 .mirmi-send-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   border: none;
   background: var(--send-bg);
-  box-shadow: 0 2px 12px rgba(0,93,255,.3);
+  box-shadow: 0 2px 10px rgba(0,93,255,.3);
   color: white;
   cursor: pointer;
   display: flex;
@@ -446,48 +775,10 @@
 }
 .mirmi-send-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 18px rgba(0,93,255,.45);
+  box-shadow: 0 4px 16px rgba(0,93,255,.45);
 }
 .mirmi-send-btn:active { transform: scale(.95); }
-.mirmi-send-btn svg { width: 14px; height: 14px; }
+.mirmi-send-btn svg { width: 12px; height: 12px; }
 .mirmi-send-btn.has-text {
   animation: sendPulse 2s ease-in-out infinite;
-}
-
-/* ── Telegram message label ───────────────────────────────── */
-.tg-label { font-size: .6rem; color: var(--text-muted); margin-bottom: 2px; letter-spacing: .06em; }
-
-/* ── Suggested prompts ───────────────────────────────────── */
-.mirmi-prompts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: center;
-  padding: 8px 16px 4px;
-  z-index: 1;
-}
-.mirmi-prompt-chip {
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid var(--border-hi);
-  background: var(--surface);
-  font-family: 'Sora', sans-serif;
-  font-size: .68rem;
-  font-weight: 400;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all .22s cubic-bezier(.34,1.5,.64,1);
-  white-space: nowrap;
-  overflow: hidden;
-  position: relative;
-}
-.mirmi-prompt-chip:hover {
-  background: var(--surface-hover);
-  border-color: rgba(56,189,248,.35);
-  color: var(--text-primary);
-  transform: translateY(-3px) scale(1.03);
-  box-shadow: 0 6px 20px rgba(56,189,248,.12);
-}
-.mirmi-prompt-chip:active {
-  transform: translateY(0) scale(.97);
 }

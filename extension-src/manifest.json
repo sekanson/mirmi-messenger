@@ -3,7 +3,7 @@
   "name": "Mirmi Messenger",
   "version": "0.1.0",
   "description": "Mirmi AI assistant orb - always there, never in the way.",
-  "permissions": [],
+  "permissions": ["storage"],
   "host_permissions": [
     "https://mirmi-bridge.sekanson.com/*",
     "https://bridge-xix3-d.vercel.app/*"
