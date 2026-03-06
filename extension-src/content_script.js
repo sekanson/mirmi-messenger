@@ -1,5 +1,5 @@
-/* ── Mirmi Messenger - content_script.js ─────────────────── */
-/* Injects orb + messenger panel into every page via shadow DOM */
+/* -- Mirmi Messenger v2 - content_script.js -------------------- */
+/* Injects orb + messenger UI into every page via shadow DOM      */
 
 (function() {
   'use strict';
@@ -67,81 +67,90 @@
   const container = document.createElement('div');
   container.style.cssText = 'pointer-events:auto;';
   container.innerHTML = `
-    <!-- Identity Picker Overlay -->
+    <!-- Identity picker overlay -->
     <div id="mirmi-identity-overlay" class="mirmi-identity-overlay" style="display:none;">
       <div class="mirmi-identity-card">
         <div class="mirmi-identity-orb">
-          ${sphereHTML(64, 'identity')}
+          ${sphereHTML(80, 'identity')}
         </div>
         <div class="mirmi-identity-title">Who are you?</div>
+        <div class="mirmi-identity-subtitle">Pick your name to get started</div>
         <div class="mirmi-identity-buttons">
-          <button class="mirmi-identity-btn" data-name="Hammad">Hammad</button>
-          <button class="mirmi-identity-btn" data-name="Tiago">Tiago</button>
-          <button class="mirmi-identity-btn" data-name="Aamir">Aamir</button>
+          <button class="mirmi-identity-btn" data-name="Hammad" data-color="#3b82f6" data-letter="H">
+            <span class="mirmi-identity-letter" style="background:rgba(59,130,246,.2);color:#60a5fa;">H</span>
+            Hammad
+          </button>
+          <button class="mirmi-identity-btn" data-name="Tiago" data-color="#8b5cf6" data-letter="T">
+            <span class="mirmi-identity-letter" style="background:rgba(139,92,246,.2);color:#a78bfa;">T</span>
+            Tiago
+          </button>
+          <button class="mirmi-identity-btn" data-name="Aamir" data-color="#f59e0b" data-letter="A">
+            <span class="mirmi-identity-letter" style="background:rgba(245,158,11,.2);color:#fbbf24;">A</span>
+            Aamir
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- Collapsed orb trigger -->
+    <!-- Collapsed orb trigger (draggable) -->
     <div id="mirmi-orb-trigger">
       ${sphereHTML(56, 'trig')}
     </div>
 
-    <!-- Messenger panel -->
-    <div id="mirmi-chat-overlay">
+    <!-- Messenger panel (mini + fullscreen states) -->
+    <div id="mirmi-messenger" class="mirmi-messenger">
       <canvas id="mirmi-mood-bg"></canvas>
 
-      <!-- Messenger layout: sidebar + chat -->
-      <div class="mirmi-messenger-layout">
-        <!-- Sidebar -->
-        <div class="mirmi-sidebar">
-          <div class="mirmi-sidebar-header">
-            <div class="mirmi-sidebar-logo">
-              ${sphereHTML(28, 'sidebar')}
-            </div>
-            <span class="mirmi-sidebar-title">Mirmi</span>
+      <!-- Top bar -->
+      <div class="mirmi-topbar">
+        <div class="mirmi-topbar-left">
+          <div class="mirmi-topbar-orb">
+            ${sphereHTML(28, 'header')}
           </div>
-          <div class="mirmi-conversation-list" id="mirmi-conversation-list">
+          <span class="mirmi-topbar-title">Mirmi</span>
+          <span class="mirmi-state-text" id="mirmi-state-text">Ready</span>
+        </div>
+        <div class="mirmi-topbar-actions">
+          <button class="mirmi-topbar-btn" id="mirmi-expand-btn" title="Expand">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+            </svg>
+          </button>
+          <button class="mirmi-topbar-btn" id="mirmi-close-btn" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Body: sidebar + chat -->
+      <div class="mirmi-body">
+        <!-- Sidebar (conversations) -->
+        <div class="mirmi-sidebar" id="mirmi-sidebar">
+          <div class="mirmi-sidebar-header">Chats</div>
+          <div class="mirmi-conv-list" id="mirmi-conv-list">
             <div class="mirmi-conv-card active" data-conv="group">
-              <div class="mirmi-conv-icon mirmi-conv-icon-group">M</div>
+              <div class="mirmi-conv-avatar mirmi-avatar-green">M</div>
               <div class="mirmi-conv-info">
                 <div class="mirmi-conv-name">Mirmi Group</div>
-                <div class="mirmi-conv-preview" id="mirmi-conv-preview-group"></div>
+                <div class="mirmi-conv-last">Telegram sync</div>
               </div>
-              <div class="mirmi-conv-badge" id="mirmi-conv-badge-group" style="display:none;">0</div>
+              <div class="mirmi-conv-badge" id="mirmi-badge-group" style="display:none;">0</div>
             </div>
             <div class="mirmi-conv-card" data-conv="dm">
-              <div class="mirmi-conv-icon mirmi-conv-icon-dm">M</div>
+              <div class="mirmi-conv-avatar mirmi-avatar-green">M</div>
               <div class="mirmi-conv-info">
                 <div class="mirmi-conv-name">Mirmi DM</div>
-                <div class="mirmi-conv-preview" id="mirmi-conv-preview-dm"></div>
+                <div class="mirmi-conv-last">Direct AI chat</div>
               </div>
-              <div class="mirmi-conv-badge" id="mirmi-conv-badge-dm" style="display:none;">0</div>
+              <div class="mirmi-conv-badge" id="mirmi-badge-dm" style="display:none;">0</div>
             </div>
           </div>
         </div>
 
         <!-- Chat area -->
         <div class="mirmi-chat-area">
-          <!-- Chat header -->
-          <div class="mirmi-chat-header">
-            <button class="mirmi-chat-close" id="mirmi-close-btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6L6 18M6 6l12 12"/>
-              </svg>
-            </button>
-            <div class="mirmi-chat-header-info">
-              <div class="mirmi-chat-header-orb">
-                ${sphereHTML(32, 'header')}
-              </div>
-              <div class="mirmi-chat-header-text">
-                <div class="mirmi-chat-header-name" id="mirmi-chat-header-name">Mirmi Group</div>
-                <div class="mirmi-state-text" id="mirmi-state-text">Ready</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Messages -->
           <div class="mirmi-messages" id="mirmi-messages"></div>
 
           <!-- Input -->
@@ -153,7 +162,6 @@
                     <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
                   </svg>
                 </button>
-                <input type="file" id="mirmi-file-input" accept="image/*" style="display:none;" />
                 <textarea class="mirmi-chat-input" id="mirmi-input" rows="1" placeholder="Message..."></textarea>
                 <div class="mirmi-input-actions">
                   <button class="mirmi-action-btn" id="mirmi-mic-btn" title="Voice input">

@@ -1,6 +1,6 @@
-/* ── Mirmi Messenger v2 - orb.js ─────────────────────────── */
-/* Full messenger UI: sidebar, conversations, image upload,    */
-/* identity picker, plus all original sphere/mood/voice code   */
+/* -- Mirmi Messenger v2 - orb.js ------------------------------- */
+/* Three-state UI, draggable orb, messenger, identity picker      */
+/* Preserves: sphere engine, mood system, eye tracking, TTS       */
 
 'use strict';
 
@@ -11,16 +11,10 @@ const BRIDGE_URL = 'https://mirmi-bridge.sekanson.com';
 const API_KEY = 'mirmi-dev-key-2026';
 const SESSION_ID = 'mirmi-' + Math.random().toString(36).slice(2, 10);
 
-// User identity — set after identity picker or chrome.storage load
-let USER_NAME = 'User';
-let USER_ID = SESSION_ID;
-
-// User color map
-const USER_COLORS = {
-  Hammad: { bg: 'rgba(239,68,68,.15)', border: 'rgba(239,68,68,.3)', text: '#f87171', class: 'hammad' },
-  Tiago:  { bg: 'rgba(168,85,247,.15)', border: 'rgba(168,85,247,.3)', text: '#c084fc', class: 'tiago' },
-  Aamir:  { bg: 'rgba(34,211,238,.15)', border: 'rgba(34,211,238,.3)', text: '#22d3ee', class: 'aamir' },
-};
+// User identity - loaded from storage
+let USER_NAME = '';
+let USER_LETTER = '';
+let USER_COLOR = '';
 
 // ==============================================================
 // BRIDGE FETCH -- route API calls through background worker
@@ -42,24 +36,7 @@ function bridgeFetch(path, method, body) {
   });
 }
 
-function uploadImage(dataUrl, fileName) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(
-      { type: 'uploadImage', dataUrl, fileName },
-      (resp) => {
-        if (chrome.runtime.lastError) {
-          return reject(new Error(chrome.runtime.lastError.message));
-        }
-        if (!resp || !resp.ok) {
-          return reject(new Error((resp && resp.error) || 'Upload failed'));
-        }
-        resolve(resp.data);
-      }
-    );
-  });
-}
-
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 // STATE
 // ==============================================================
 // UI state: 'orb' | 'mini' | 'full'
@@ -71,7 +48,6 @@ let isSpeaking = false;
 let currentAudio = null;
 let mouseX = window.innerWidth / 2;
 let mouseY = window.innerHeight / 2;
-let activeConversation = 'group'; // 'group' or 'dm'
 
 // Active conversation: 'group' | 'dm'
 let activeConv = 'group';
@@ -90,7 +66,6 @@ const unreadCounts = { group: 0, dm: 0 };
 // ==============================================================
 const shadowRoot = window.__mirmiShadowRoot;
 const $ = (sel) => shadowRoot.querySelector(sel);
-const $$ = (sel) => shadowRoot.querySelectorAll(sel);
 const $id = (id) => shadowRoot.getElementById(id);
 
 const trigger = $id('mirmi-orb-trigger');
@@ -107,12 +82,12 @@ const stateText = $id('mirmi-state-text');
 const moodCanvas = $id('mirmi-mood-bg');
 const moodCtx = moodCanvas.getContext('2d');
 const identityOverlay = $id('mirmi-identity-overlay');
-const chatHeaderName = $id('mirmi-chat-header-name');
-const convList = $id('mirmi-conversation-list');
+const convList = $id('mirmi-conv-list');
+const sidebar = $id('mirmi-sidebar');
 
-// ══════════════════════════════════════════════════════════
-// RING SHADOWS — exact from prototype
-// ══════════════════════════════════════════════════════════
+// ==============================================================
+// RING SHADOWS -- exact from prototype
+// ==============================================================
 const ringShadows = {
   idle:   {rps:1/5,  s:'0 6px 12px 0 #38bdf8 inset,0 12px 18px 0 #005dff inset,0 36px 36px 0 #1e40af inset,0 0 24px 6px rgba(56,189,248,.15),0 0 60px 12px rgba(0,93,255,.1)'},
   think:  {rps:1/7,  s:'0 6px 12px 0 #818cf8 inset,0 12px 18px 0 #4338ca inset,0 36px 36px 0 #312e81 inset,0 0 24px 6px rgba(129,140,248,.18),0 0 60px 12px rgba(67,56,202,.1)'},
@@ -123,9 +98,9 @@ const ringShadows = {
   sleep:  {rps:1/14, s:'0 6px 10px 0 #7c3aed inset,0 10px 16px 0 #4c1d95 inset,0 30px 30px 0 #2e1065 inset,0 0 18px 4px rgba(124,58,237,.12),0 0 50px 10px rgba(76,29,149,.08)'},
 };
 
-// ══════════════════════════════════════════════════════════
-// MOOD CONFIG — exact from prototype
-// ══════════════════════════════════════════════════════════
+// ==============================================================
+// MOOD CONFIG -- exact from prototype
+// ==============================================================
 const moodCfg = {
   idle:   {label:'Ready',        sc:'rgba(100,160,220,.5)',  vol:'rgba(30,80,200,.4)',   rim:'rgba(56,189,248,.20)',  lH:52,lY:74,rH:52,rY:74, dots:false,typing:false,sound:false,listen:false},
   think:  {label:'Thinking\u2026',sc:'rgba(167,139,250,.8)',  vol:'rgba(60,35,165,.52)',  rim:'rgba(167,139,250,.26)', lH:20,lY:91,rH:54,rY:70, dots:true, typing:false,sound:false,listen:false},
@@ -137,7 +112,7 @@ const moodCfg = {
 
 // ==============================================================
 // ORB INSTANCE MANAGEMENT
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 let orbInstances = [];
 let ringTargetRps = ringShadows.idle.rps;
 
@@ -176,9 +151,9 @@ function applyMoodToOrb(inst, name) {
   if (inst.tds) inst.tds.forEach(d => { if (d) { d.setAttribute('r','0'); d.setAttribute('opacity','0'); } });
 }
 
-// ══════════════════════════════════════════════════════════
-// MOOD BACKGROUND CANVAS
-// ══════════════════════════════════════════════════════════
+// ==============================================================
+// MOOD BACKGROUND -- canvas that breathes with mood
+// ==============================================================
 const MOOD_BG = {
   idle:   [{r:11,g:26,b:61},{r:3,g:6,b:16}],
   think:  [{r:24,g:13,b:61},{r:3,g:6,b:16}],
@@ -223,9 +198,9 @@ function resizeMoodCanvas() {
   }
 }
 
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 // GEN TYPING DOTS
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 let typingTimer = null;
 function startTypingDots() {
   stopTypingDots();
@@ -263,9 +238,9 @@ function stopTypingDots() {
   });
 }
 
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 // SET MOOD
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 function setMood(name) {
   currentMood = name;
   const c = moodCfg[name]; if (!c) return;
@@ -280,9 +255,9 @@ function setMood(name) {
   setBgMood(name);
 }
 
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 // BLINK
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 let blinkTimer;
 function scheduleBlink() {
   blinkTimer = setTimeout(() => {
@@ -313,9 +288,9 @@ function scheduleBlink() {
   }, 2000 + Math.random() * 2500);
 }
 
-// ══════════════════════════════════════════════════════════
-// FRAME LOOP — ring rotation, eye tracking, etc.
-// ══════════════════════════════════════════════════════════
+// ==============================================================
+// FRAME LOOP
+// ==============================================================
 const startT = performance.now();
 let lastFrameT = performance.now();
 
@@ -365,10 +340,12 @@ function frame() {
     inst.curPX = inst.curPX + (miniPX - inst.curPX) * lerpFactor;
     inst.curPY = inst.curPY + (miniPY - inst.curPY) * lerpFactor;
 
+    // Ring rotation
     inst.ringRps += (ringTargetRps - inst.ringRps) * Math.min(1, dt * 2.2);
     inst.ringAngle = (inst.ringAngle + inst.ringRps * 360 * dt) % 360;
     inst.ring.style.transform = `rotate(${inst.ringAngle}deg)`;
 
+    // Eye tracking
     const lH = inst.eyeLH, lY = inst.eyeLY, rH = inst.eyeRH, rY = inst.eyeRY;
     inst.eyeL.setAttribute('x', 52 + inst.curPX);
     inst.eyeL.setAttribute('y', lY + inst.curPY);
@@ -381,10 +358,12 @@ function frame() {
     inst.eyeR.setAttribute('rx', Math.min(19, rH / 2));
     inst.eyeR.setAttribute('ry', Math.min(19, rH / 2));
 
+    // Specular highlight
     if (inst.spec) {
       inst.spec.style.background = `radial-gradient(ellipse 22% 17% at ${34 - ndx * 10}% ${26 - ndy * 8}%,rgba(255,255,255,.22) 0%,rgba(255,255,255,.05) 44%,transparent 68%)`;
     }
 
+    // Think dots
     if (currentMood === 'think' && inst.dots) {
       const dotXs = [86, 100, 114];
       inst.dots.forEach((d, i) => {
@@ -399,6 +378,7 @@ function frame() {
       inst.eyeR.setAttribute('y', rY + inst.curPY + Math.sin(t * .55) * 3);
     }
 
+    // Gen dots
     if (currentMood === 'gen' && inst.tds) {
       inst.tds.forEach((d, i) => {
         if (!d) return;
@@ -408,6 +388,7 @@ function frame() {
       });
     }
 
+    // Talk -- eye bounce
     if (currentMood === 'talk') {
       const dh = lH * Math.abs(Math.sin(t * 3.2)) * .18;
       inst.eyeL.setAttribute('height', lH + dh);
@@ -432,7 +413,207 @@ document.addEventListener('touchmove', e => {
   if (e.touches.length > 0) { mouseX = e.touches[0].clientX; mouseY = e.touches[0].clientY; }
 }, { passive: true });
 
-// ══════════════════════════════════════════════════════════
+// ==============================================================
+// DRAGGABLE ORB
+// ==============================================================
+let orbX, orbY; // stored as left, top of trigger
+let isDragging = false;
+let dragStartX, dragStartY;
+let dragOrbStartX, dragOrbStartY;
+const DRAG_THRESHOLD = 5;
+
+// Default: bottom-right
+function defaultOrbPos() {
+  return { x: window.innerWidth - 56 - 24, y: window.innerHeight - 56 - 24 };
+}
+
+function setOrbPosition(x, y) {
+  // Clamp within viewport
+  const maxX = window.innerWidth - 56;
+  const maxY = window.innerHeight - 56;
+  orbX = Math.max(0, Math.min(x, maxX));
+  orbY = Math.max(0, Math.min(y, maxY));
+  trigger.style.left = orbX + 'px';
+  trigger.style.top = orbY + 'px';
+  trigger.style.right = 'auto';
+  trigger.style.bottom = 'auto';
+}
+
+function saveOrbPosition() {
+  chrome.storage.local.set({ mirmiOrbPos: { x: orbX, y: orbY } });
+}
+
+function loadOrbPosition(callback) {
+  chrome.storage.local.get('mirmiOrbPos', (result) => {
+    if (result.mirmiOrbPos) {
+      callback(result.mirmiOrbPos.x, result.mirmiOrbPos.y);
+    } else {
+      const def = defaultOrbPos();
+      callback(def.x, def.y);
+    }
+  });
+}
+
+// Drag handlers
+trigger.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  dragStartX = e.clientX;
+  dragStartY = e.clientY;
+  dragOrbStartX = orbX;
+  dragOrbStartY = orbY;
+  isDragging = false;
+
+  function onMove(ev) {
+    const dx = ev.clientX - dragStartX;
+    const dy = ev.clientY - dragStartY;
+    if (!isDragging && Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
+      isDragging = true;
+      trigger.classList.add('dragging');
+    }
+    if (isDragging) {
+      setOrbPosition(dragOrbStartX + dx, dragOrbStartY + dy);
+    }
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    trigger.classList.remove('dragging');
+    if (isDragging) {
+      saveOrbPosition();
+      isDragging = false;
+    } else {
+      // It was a click
+      openMini();
+    }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+});
+
+// Touch drag
+trigger.addEventListener('touchstart', (e) => {
+  const touch = e.touches[0];
+  dragStartX = touch.clientX;
+  dragStartY = touch.clientY;
+  dragOrbStartX = orbX;
+  dragOrbStartY = orbY;
+  isDragging = false;
+
+  function onMove(ev) {
+    const t = ev.touches[0];
+    const dx = t.clientX - dragStartX;
+    const dy = t.clientY - dragStartY;
+    if (!isDragging && Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
+      isDragging = true;
+      trigger.classList.add('dragging');
+    }
+    if (isDragging) {
+      ev.preventDefault();
+      setOrbPosition(dragOrbStartX + dx, dragOrbStartY + dy);
+    }
+  }
+  function onEnd() {
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onEnd);
+    trigger.classList.remove('dragging');
+    if (isDragging) {
+      saveOrbPosition();
+      isDragging = false;
+    } else {
+      openMini();
+    }
+  }
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend', onEnd);
+}, { passive: true });
+
+// ==============================================================
+// THREE-STATE UI TRANSITIONS
+// ==============================================================
+function positionMessengerPanel() {
+  // Smart positioning: if orb is on left half, panel opens right; else left
+  const orbCenterX = orbX + 28;
+  const onLeft = orbCenterX < window.innerWidth / 2;
+
+  messenger.style.top = 'auto';
+  messenger.style.left = 'auto';
+  messenger.style.right = 'auto';
+
+  const panelW = 380;
+  const panelH = 580;
+
+  // Vertical: align bottom of panel with bottom of orb, clamped to viewport
+  let top = orbY + 56 - panelH;
+  top = Math.max(8, Math.min(top, window.innerHeight - panelH - 8));
+  messenger.style.top = top + 'px';
+
+  if (onLeft) {
+    let left = orbX + 56 + 8;
+    if (left + panelW > window.innerWidth - 8) left = window.innerWidth - panelW - 8;
+    messenger.style.left = left + 'px';
+  } else {
+    let left = orbX - panelW - 8;
+    if (left < 8) left = 8;
+    messenger.style.left = left + 'px';
+  }
+}
+
+function openMini() {
+  if (uiState === 'mini' || uiState === 'full') return;
+  uiState = 'mini';
+  messenger.classList.remove('fullscreen');
+  messenger.style.width = '380px';
+  messenger.style.height = '580px';
+  positionMessengerPanel();
+  messenger.classList.add('open');
+  trigger.classList.add('hidden');
+  inputEl.focus();
+  requestAnimationFrame(resizeMoodCanvas);
+  scrollToBottom();
+}
+
+function openFull() {
+  uiState = 'full';
+  messenger.classList.add('fullscreen');
+  messenger.classList.add('open');
+  trigger.classList.add('hidden');
+  inputEl.focus();
+  requestAnimationFrame(resizeMoodCanvas);
+  scrollToBottom();
+}
+
+function closeMini() {
+  uiState = 'orb';
+  messenger.classList.remove('open', 'fullscreen');
+  trigger.classList.remove('hidden');
+  stopListening();
+}
+
+function collapseToMini() {
+  if (uiState !== 'full') return;
+  uiState = 'mini';
+  messenger.classList.remove('fullscreen');
+  messenger.style.width = '380px';
+  messenger.style.height = '580px';
+  positionMessengerPanel();
+  requestAnimationFrame(resizeMoodCanvas);
+}
+
+// Button handlers
+closeBtn.addEventListener('click', closeMini);
+expandBtn.addEventListener('click', () => {
+  if (uiState === 'mini') openFull();
+  else if (uiState === 'full') collapseToMini();
+});
+
+// Escape key: full -> mini
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && uiState === 'full') {
+    collapseToMini();
+  }
+});
+
+// ==============================================================
 // CREATE MINI MIRMI FOR CHAT AVATARS
 // ==============================================================
 let msgOrbCount = 0;
@@ -507,183 +688,19 @@ function createMiniMirmiEl(size) {
   return wrap;
 }
 
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 // AVATAR HELPERS
-// ══════════════════════════════════════════════════════════
-function getSenderClass(name) {
-  if (!name) return 'default';
-  const n = name.toLowerCase();
-  if (n === 'hammad') return 'hammad';
-  if (n === 'tiago') return 'tiago';
-  if (n === 'aamir') return 'aamir';
-  if (n === 'mirmi') return 'mirmi';
-  return 'default';
-}
+// ==============================================================
+const avatarMap = {
+  'Mirmi':  { letter: 'M', class: 'avatar-mirmi' },
+  'Hammad': { letter: 'H', class: 'avatar-hammad' },
+  'Tiago':  { letter: 'T', class: 'avatar-tiago' },
+  'Aamir':  { letter: 'A', class: 'avatar-aamir' },
+};
 
-function createAvatar(senderName, isMirmi) {
-  if (isMirmi) {
-    const av = document.createElement('div');
-    av.className = 'mirmi-av';
-    av.innerHTML = '<span class="mirmi-av-letter">M</span>';
-    return av;
-  }
-  const cls = getSenderClass(senderName);
-  const av = document.createElement('div');
-  av.className = 'user-av av-' + cls;
-  av.innerHTML = '<span class="user-av-letter">' + (senderName ? senderName.charAt(0).toUpperCase() : 'U') + '</span>';
-  return av;
-}
-
-function formatTime(ts) {
-  if (!ts) return '';
-  const d = new Date(typeof ts === 'number' ? ts : Date.parse(ts));
-  if (isNaN(d.getTime())) return '';
-  const h = d.getHours();
-  const m = d.getMinutes().toString().padStart(2, '0');
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12 = h % 12 || 12;
-  return h12 + ':' + m + ' ' + ampm;
-}
-
-// ══════════════════════════════════════════════════════════
-// OPEN / CLOSE
-// ══════════════════════════════════════════════════════════
-function openChat() {
-  isOpen = true;
-  overlay.classList.add('open');
-  trigger.classList.add('hidden');
-  inputEl.focus();
-  requestAnimationFrame(resizeMoodCanvas);
-}
-
-function closeChat() {
-  isOpen = false;
-  overlay.classList.remove('open');
-  trigger.classList.remove('hidden');
-  stopListening();
-}
-
-trigger.addEventListener('click', () => {
-  // Check identity first
-  if (USER_NAME === 'User') {
-    // Need to check storage
-    chrome.storage.local.get('mirmiUser', (result) => {
-      if (result.mirmiUser) {
-        USER_NAME = result.mirmiUser;
-        openChat();
-      } else {
-        // Show identity picker
-        identityOverlay.style.display = '';
-        trigger.classList.add('hidden');
-      }
-    });
-  } else {
-    openChat();
-  }
-});
-closeBtn.addEventListener('click', closeChat);
-
-// ══════════════════════════════════════════════════════════
-// IDENTITY PICKER
-// ══════════════════════════════════════════════════════════
-if (identityOverlay) {
-  identityOverlay.addEventListener('click', (e) => {
-    const btn = e.target.closest('.mirmi-identity-btn');
-    if (!btn) return;
-    const name = btn.dataset.name;
-    USER_NAME = name;
-    chrome.storage.local.set({ mirmiUser: name });
-    identityOverlay.style.display = 'none';
-    openChat();
-  });
-}
-
-// ══════════════════════════════════════════════════════════
-// CONVERSATION SWITCHING
-// ══════════════════════════════════════════════════════════
-function switchConversation(convId) {
-  if (convId === activeConversation) return;
-  activeConversation = convId;
-
-  // Update sidebar active state
-  const cards = convList.querySelectorAll('.mirmi-conv-card');
-  cards.forEach(card => {
-    card.classList.toggle('active', card.dataset.conv === convId);
-  });
-
-  // Update header name
-  const names = { group: 'Mirmi Group', dm: 'Mirmi DM' };
-  if (chatHeaderName) chatHeaderName.textContent = names[convId] || convId;
-
-  // Clear messages and reload for this conversation
-  messagesEl.innerHTML = '';
-  lastPollTs = Date.now() - 600000; // lookback
-  pollMessages();
-}
-
-if (convList) {
-  convList.addEventListener('click', (e) => {
-    const card = e.target.closest('.mirmi-conv-card');
-    if (card && card.dataset.conv) {
-      switchConversation(card.dataset.conv);
-    }
-  });
-}
-
-// ══════════════════════════════════════════════════════════
-// MESSAGES
-// ══════════════════════════════════════════════════════════
-function addMessage(role, content, senderName, timestamp, imageUrl) {
-  const row = document.createElement('div');
-  const isMirmi = role === 'mirmi' || (senderName && senderName.toLowerCase() === 'mirmi');
-  const isUser = role === 'user';
-
-  if (isUser) {
-    row.className = 'msg-row user';
-  } else if (isMirmi) {
-    row.className = 'msg-row mirmi';
-  } else {
-    row.className = 'msg-row other';
-  }
-
-  // Avatar
-  const displayName = senderName || (isUser ? USER_NAME : 'Mirmi');
-  const avatar = createAvatar(displayName, isMirmi);
-  row.appendChild(avatar);
-
-  // Message column
-  const col = document.createElement('div');
-  col.className = 'msg-col';
-
-  // Sender name
-  const sender = document.createElement('div');
-  sender.className = 'msg-sender sender-' + getSenderClass(displayName);
-  sender.textContent = displayName;
-  col.appendChild(sender);
-
-  // Bubble
-  const bubble = document.createElement('div');
-  bubble.className = 'msg-bubble';
-  if (content) bubble.textContent = content;
-  if (imageUrl) {
-    const img = document.createElement('img');
-    img.className = 'msg-image';
-    img.src = imageUrl;
-    img.alt = 'Image';
-    img.loading = 'lazy';
-    bubble.appendChild(img);
-  }
-  col.appendChild(bubble);
-
-  // Timestamp
-  const time = document.createElement('div');
-  time.className = 'msg-time';
-  time.textContent = formatTime(timestamp || Date.now());
-  col.appendChild(time);
-
-  row.appendChild(col);
-  messagesEl.appendChild(row);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+function getAvatarInfo(name) {
+  if (avatarMap[name]) return avatarMap[name];
+  return { letter: (name || '?').charAt(0).toUpperCase(), class: 'avatar-user' };
 }
 
 function createAvatarEl(name, useMirmiOrb) {
@@ -711,7 +728,7 @@ function renderMessages() {
   const msgs = convMessages[activeConv] || [];
   let lastSender = null;
 
-  msgs.forEach((msg, i) => {
+  msgs.forEach((msg) => {
     const isMe = msg.from === USER_NAME;
 
     // Show sender label when sender changes
@@ -733,11 +750,6 @@ function renderMessages() {
     // Content column
     const col = document.createElement('div');
 
-    // Bubble
-    const bubble = document.createElement('div');
-    bubble.className = 'msg-bubble';
-    if (msg.text) bubble.textContent = msg.text;
-
     // Image
     if (msg.imageUrl) {
       const img = document.createElement('img');
@@ -747,7 +759,13 @@ function renderMessages() {
       col.appendChild(img);
     }
 
-    if (msg.text) col.appendChild(bubble);
+    // Bubble
+    if (msg.text) {
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+      bubble.textContent = msg.text;
+      col.appendChild(bubble);
+    }
 
     // Timestamp
     if (msg.timestamp) {
@@ -822,17 +840,13 @@ function showTyping() {
   row.className = 'msg-row other';
   row.id = 'mirmi-typing';
 
-  const avatar = createAvatar('Mirmi', true);
+  const avatar = createMiniMirmiEl(28);
   row.appendChild(avatar);
-
-  const col = document.createElement('div');
-  col.className = 'msg-col';
 
   const bubble = document.createElement('div');
   bubble.className = 'msg-bubble';
   bubble.innerHTML = '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>';
-  col.appendChild(bubble);
-  row.appendChild(col);
+  row.appendChild(bubble);
 
   messagesEl.appendChild(row);
   scrollToBottom();
@@ -843,12 +857,11 @@ function hideTyping() {
   if (el) el.remove();
 }
 
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 // TELEGRAM POLLING
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 let pollTimer = null;
-let lastPollTs = Date.now() - 600000;
-let seenMessageIds = new Set();
+let lastPollTs = Date.now() - 600000; // 10 min lookback
 
 function startPolling() {
   if (pollTimer) return;
@@ -858,16 +871,17 @@ function startPolling() {
 
 async function pollMessages() {
   try {
-    let path = '/api/messages?since=' + lastPollTs;
-    if (activeConversation) {
-      path += '&conversationId=' + activeConversation;
-    }
-    const data = await bridgeFetch(path, 'GET', null);
+    const data = await bridgeFetch('/api/messages?since=' + lastPollTs, 'GET', null);
     if (data.messages && data.messages.length) {
       data.messages.forEach(msg => {
-        if (msg.id && seenMessageIds.has(msg.id)) return;
-        if (msg.id) seenMessageIds.add(msg.id);
-        addTelegramMessage(msg);
+        // Skip messages from ourselves (already shown locally)
+        if (msg.from === USER_NAME) return;
+        addMessageToConv('group', {
+          from: msg.from || 'Telegram',
+          text: msg.text || msg.message || '',
+          timestamp: msg.timestamp || Date.now(),
+          imageUrl: msg.imageUrl || null,
+        });
       });
       lastPollTs = Date.now();
     }
@@ -876,42 +890,41 @@ async function pollMessages() {
   }
 }
 
-function addTelegramMessage(msg) {
-  const isMe = msg.from === USER_NAME;
-  const isMirmi = msg.from && msg.from.toLowerCase() === 'mirmi';
-  const role = isMe ? 'user' : (isMirmi ? 'mirmi' : 'other');
-  addMessage(role, msg.text || msg.message || '', msg.from || 'Unknown', msg.timestamp, msg.imageUrl);
-}
-
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 // SEND MESSAGE
 // ==============================================================
 async function sendMessage(text) {
   if (!text || !text.trim()) return;
   text = text.trim();
 
-  addMessage('user', text, USER_NAME, Date.now());
+  const msg = {
+    from: USER_NAME,
+    text: text,
+    timestamp: Date.now(),
+  };
+  addMessageToConv(activeConv, msg);
   inputEl.value = '';
   inputEl.style.height = 'auto';
   sendBtn.classList.remove('has-text');
 
-  if (activeConversation === 'dm') {
-    // DM mode: talk to Mirmi brain via /api/chat
+  if (activeConv === 'dm') {
+    // DM: send to /api/chat for AI response
     setMood('think');
     showTyping();
 
     try {
       const genTimer = setTimeout(() => setMood('gen'), 900);
-      const data = await bridgeFetch('/api/chat', 'POST', {
-        message: text,
-        sessionId: SESSION_ID,
-        userName: USER_NAME
-      });
+      const data = await bridgeFetch('/api/chat', 'POST', { message: text, sessionId: SESSION_ID, userName: USER_NAME });
 
       clearTimeout(genTimer);
       hideTyping();
+
       setMood('talk');
-      addMessage('mirmi', data.reply, 'Mirmi', Date.now());
+      addMessageToConv('dm', {
+        from: 'Mirmi',
+        text: data.reply,
+        timestamp: Date.now(),
+      });
       speak(data.reply, () => {
         setMood('done');
         setTimeout(() => setMood('idle'), 2200);
@@ -919,21 +932,18 @@ async function sendMessage(text) {
     } catch (err) {
       hideTyping();
       setMood('idle');
-      addMessage('mirmi', 'Can\'t reach Mirmi brain right now. (' + err.message + ')', 'Mirmi', Date.now());
+      addMessageToConv('dm', {
+        from: 'Mirmi',
+        text: 'I can\'t reach my brain right now. (' + err.message + ')',
+        timestamp: Date.now(),
+      });
     }
   } else {
-    // Group mode: send to Telegram via bridge
+    // Group: send to Telegram via bridge
     try {
-      await bridgeFetch('/api/message', 'POST', {
-        id: 'ext-' + Date.now(),
-        from: USER_NAME,
-        text: text,
-        timestamp: Date.now(),
-        chatId: 'group',
-        conversationId: activeConversation
-      });
+      await bridgeFetch('/api/chat', 'POST', { message: text, sessionId: SESSION_ID, userName: USER_NAME });
     } catch (err) {
-      console.warn('Failed to send group message:', err.message);
+      console.warn('Send to group failed:', err.message);
     }
   }
 }
@@ -998,87 +1008,20 @@ inputEl.addEventListener('keydown', (e) => {
 inputEl.addEventListener('input', () => {
   sendBtn.classList.toggle('has-text', inputEl.value.trim().length > 0);
   inputEl.style.height = 'auto';
-  inputEl.style.height = Math.min(inputEl.scrollHeight, 72) + 'px';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 80) + 'px';
 });
 
-// ══════════════════════════════════════════════════════════
-// IMAGE UPLOAD
-// ══════════════════════════════════════════════════════════
-if (attachBtn && fileInput) {
-  attachBtn.addEventListener('click', () => fileInput.click());
-
-  fileInput.addEventListener('change', async () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-    fileInput.value = '';
-
-    // Validate
-    if (!file.type.startsWith('image/')) {
-      addMessage('mirmi', 'Only image files are supported.', 'Mirmi', Date.now());
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      addMessage('mirmi', 'Image must be under 10MB.', 'Mirmi', Date.now());
-      return;
-    }
-
-    // Show uploading state
-    const uploadRow = document.createElement('div');
-    uploadRow.className = 'msg-row user';
-    uploadRow.id = 'mirmi-upload-pending';
-
-    const av = createAvatar(USER_NAME, false);
-    uploadRow.appendChild(av);
-
-    const col = document.createElement('div');
-    col.className = 'msg-col';
-
-    const sender = document.createElement('div');
-    sender.className = 'msg-sender sender-' + getSenderClass(USER_NAME);
-    sender.textContent = USER_NAME;
-    col.appendChild(sender);
-
-    const bubble = document.createElement('div');
-    bubble.className = 'msg-bubble';
-    bubble.innerHTML = '<div class="msg-uploading"><div class="upload-spinner"></div>Uploading image...</div>';
-    col.appendChild(bubble);
-
-    uploadRow.appendChild(col);
-    messagesEl.appendChild(uploadRow);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-
-    try {
-      // Read file as dataURL
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      // Upload via background
-      const result = await uploadImage(dataUrl, file.name);
-
-      // Replace uploading state with image
-      const pending = $id('mirmi-upload-pending');
-      if (pending) pending.remove();
-
-      addMessage('user', '', USER_NAME, Date.now(), result.url || dataUrl);
-    } catch (err) {
-      const pending = $id('mirmi-upload-pending');
-      if (pending) pending.remove();
-      addMessage('mirmi', 'Upload failed: ' + err.message, 'Mirmi', Date.now());
-    }
-  });
-}
-
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 // VOICE INPUT (Web Speech API)
 // ==============================================================
 function startListening() {
   stopSpeaking();
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-    addMessage('mirmi', 'Speech recognition is not supported in this browser.', 'Mirmi', Date.now());
+    addMessageToConv(activeConv, {
+      from: 'Mirmi',
+      text: 'Speech recognition is not supported in this browser.',
+      timestamp: Date.now(),
+    });
     return;
   }
 
@@ -1222,30 +1165,13 @@ function loadIdentity(callback) {
 // INIT
 // ==============================================================
 requestAnimationFrame(() => {
-  // Create orb instances for trigger, header, sidebar, identity
+  // Create orb instances for trigger and header
   const trigInst = createOrbInstance('trig');
   const headerInst = createOrbInstance('header');
-  const sidebarInst = createOrbInstance('sidebar');
-  orbInstances.push(trigInst, headerInst, sidebarInst);
-
-  // Try to create identity orb instance (may not exist if identity already set)
-  try {
-    const identityInst = createOrbInstance('identity');
-    if (identityInst.ring) orbInstances.push(identityInst);
-  } catch (e) {}
+  orbInstances.push(trigInst, headerInst);
 
   // Apply initial mood
   setMood('idle');
-
-  // Load identity from storage
-  chrome.storage.local.get('mirmiUser', (result) => {
-    if (result.mirmiUser) {
-      USER_NAME = result.mirmiUser;
-    }
-  });
-
-  // Start polling for Telegram messages
-  startPolling();
 
   // Start blink timer
   scheduleBlink();
@@ -1267,7 +1193,7 @@ requestAnimationFrame(() => {
     if (!found) {
       showIdentityPicker();
     }
-    // Start polling regardless (will use whatever identity is set)
+    // Start polling regardless
     startPolling();
   });
 });

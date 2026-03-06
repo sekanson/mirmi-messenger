@@ -31,21 +31,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ ok: false, error: err.message });
       });
 
-    return true;
+    return true; // keep channel open for async sendResponse
   }
 
   if (msg.type === 'uploadImage') {
-    const url = BRIDGE_URL + '/api/upload-image';
-    fetch(url, {
+    const { dataUrl, fileName } = msg;
+
+    fetch(BRIDGE_URL + '/api/upload-image', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-mirmi-key': API_KEY
       },
-      body: JSON.stringify({
-        dataUrl: msg.dataUrl,
-        fileName: msg.fileName
-      })
+      body: JSON.stringify({ dataUrl, fileName })
     })
       .then(async (res) => {
         if (!res.ok) throw new Error('Upload error: ' + res.status);
