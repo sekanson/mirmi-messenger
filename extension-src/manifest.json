@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Mirmi Messenger",
+  "version": "0.1.0",
+  "description": "Mirmi AI assistant orb - always there, never in the way.",
+  "permissions": [],
+  "host_permissions": [
+    "https://mirmi-bridge.sekanson.com/*",
+    "https://bridge-xix3-d.vercel.app/*"
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content_script.js", "orb.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["orb.css", "icons/icon16.png", "icons/icon48.png", "icons/icon128.png"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
