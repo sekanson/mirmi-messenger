@@ -310,6 +310,7 @@
 .mirmi-topbar-left { display: flex; align-items: center; gap: 8px; }
 .mirmi-topbar-orb { width: 28px; height: 28px; }
 .mirmi-topbar-title { font-size: .9rem; font-weight: 600; color: var(--text-primary); letter-spacing: .03em; }
+.mirmi-topbar-sep { font-size: .7rem; color: var(--text-muted); margin: 0 2px; }
 .mirmi-state-text { font-size: .55rem; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: var(--text-muted); transition: color .5s; }
 .mirmi-topbar-actions { display: flex; gap: 4px; }
 .mirmi-topbar-btn {
@@ -346,7 +347,7 @@
   border-radius: 10px; cursor: pointer; transition: background .2s; position: relative;
 }
 .mirmi-conv-card:hover { background: var(--surface-hover); }
-.mirmi-conv-card.active { background: var(--surface); border: 1px solid var(--border); }
+.mirmi-conv-card.active { background: var(--surface); border: 1px solid var(--border); border-left: 2px solid var(--accent); }
 .mirmi-conv-avatar {
   width: 32px; height: 32px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -380,6 +381,10 @@
 .msg-row { display: flex; align-items: flex-start; gap: 8px; padding: 2px 0; animation: msgIn .35s cubic-bezier(.34,1.4,.64,1) both; }
 .msg-row.user { flex-direction: row-reverse; }
 .msg-group-label { font-size: .6rem; color: var(--text-muted); margin-bottom: 2px; letter-spacing: .06em; padding: 4px 0 0; }
+.msg-group-label.sender-hammad { color: #60a5fa; }
+.msg-group-label.sender-tiago { color: #a78bfa; }
+.msg-group-label.sender-aamir { color: #fbbf24; }
+.msg-group-label.sender-mirmi { color: #34d399; }
 .msg-bubble {
   max-width: 72%; padding: 10px 14px; border-radius: 16px;
   font-size: .82rem; line-height: 1.55; font-weight: 300; word-wrap: break-word;

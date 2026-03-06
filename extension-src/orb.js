@@ -84,6 +84,17 @@ const moodCtx = moodCanvas.getContext('2d');
 const identityOverlay = $id('mirmi-identity-overlay');
 const convList = $id('mirmi-conv-list');
 const sidebar = $id('mirmi-sidebar');
+const topbarTitle = $id('mirmi-topbar-title');
+
+// Conversation display names
+const convNames = { group: 'Mirmi Group', dm: 'Mirmi DM' };
+
+// Metadata patterns to strip from message text
+const STRIP_PATTERNS = [
+  /^To send an image back.*$/gim,
+  /\[media attached\]/gi,
+  /\[image\]/gi,
+];
 
 // ==============================================================
 // RING SHADOWS -- exact from prototype
@@ -723,6 +734,13 @@ function scrollToBottom() {
   });
 }
 
+function cleanMessageText(text) {
+  if (!text) return '';
+  let cleaned = text;
+  STRIP_PATTERNS.forEach(pat => { cleaned = cleaned.replace(pat, ''); });
+  return cleaned.trim();
+}
+
 function renderMessages() {
   messagesEl.innerHTML = '';
   const msgs = convMessages[activeConv] || [];
@@ -734,7 +752,9 @@ function renderMessages() {
     // Show sender label when sender changes
     if (msg.from !== lastSender) {
       const label = document.createElement('div');
-      label.className = 'msg-group-label';
+      const senderKey = (msg.from || '').toLowerCase();
+      const senderClass = ['hammad','tiago','aamir','mirmi'].includes(senderKey) ? ' sender-' + senderKey : '';
+      label.className = 'msg-group-label' + senderClass;
       label.textContent = isMe ? 'You' : (msg.from || 'Unknown');
       messagesEl.appendChild(label);
       lastSender = msg.from;
@@ -760,10 +780,11 @@ function renderMessages() {
     }
 
     // Bubble
-    if (msg.text) {
+    const cleanedText = cleanMessageText(msg.text);
+    if (cleanedText) {
       const bubble = document.createElement('div');
       bubble.className = 'msg-bubble';
-      bubble.textContent = msg.text;
+      bubble.textContent = cleanedText;
       col.appendChild(bubble);
     }
 
@@ -792,6 +813,19 @@ function addMessageToConv(conv, msg) {
     unreadCounts[conv]++;
     updateBadges();
   }
+  // Update sidebar last-message preview
+  updateConvPreview(conv, msg);
+}
+
+function updateConvPreview(conv, msg) {
+  const card = convList.querySelector(`.mirmi-conv-card[data-conv="${conv}"]`);
+  if (!card) return;
+  const lastEl = card.querySelector('.mirmi-conv-last');
+  if (!lastEl) return;
+  const preview = cleanMessageText(msg.text) || (msg.imageUrl ? '📷 Photo' : '');
+  const prefix = msg.from ? msg.from + ': ' : '';
+  const full = prefix + preview;
+  lastEl.textContent = full.length > 30 ? full.slice(0, 30) + '…' : full;
 }
 
 // ==============================================================
@@ -807,6 +841,9 @@ function switchConversation(conv) {
   convList.querySelectorAll('.mirmi-conv-card').forEach(card => {
     card.classList.toggle('active', card.dataset.conv === conv);
   });
+
+  // Update header title
+  if (topbarTitle) topbarTitle.textContent = convNames[conv] || 'Mirmi';
 
   renderMessages();
 }
@@ -910,11 +947,12 @@ async function sendMessage(text) {
   if (activeConv === 'dm') {
     // DM: send to /api/chat for AI response
     setMood('think');
+    if (stateText) stateText.textContent = 'typing…';
     showTyping();
 
     try {
       const genTimer = setTimeout(() => setMood('gen'), 900);
-      const data = await bridgeFetch('/api/chat', 'POST', { message: text, sessionId: SESSION_ID, userName: USER_NAME });
+      const data = await bridgeFetch('/api/chat', 'POST', { message: text, sessionId: SESSION_ID, userName: USER_NAME, conversationId: 'dm' });
 
       clearTimeout(genTimer);
       hideTyping();
@@ -941,7 +979,7 @@ async function sendMessage(text) {
   } else {
     // Group: send to Telegram via bridge
     try {
-      await bridgeFetch('/api/chat', 'POST', { message: text, sessionId: SESSION_ID, userName: USER_NAME });
+      await bridgeFetch('/api/chat', 'POST', { message: text, sessionId: SESSION_ID, userName: USER_NAME, conversationId: 'group' });
     } catch (err) {
       console.warn('Send to group failed:', err.message);
     }
@@ -1211,4 +1249,4 @@ window.addEventListener('resize', () => {
   }
 });
 
-console.log('Mirmi Messenger v2 loaded.');
+console.log('Mirmi Messenger v25 loaded.');

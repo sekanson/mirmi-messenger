@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Mirmi Messenger",
-  "version": "2.0.0",
+  "version": "2.5.0",
   "description": "Mirmi AI assistant orb - always there, never in the way.",
   "permissions": ["storage"],
   "host_permissions": [

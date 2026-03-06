@@ -53,12 +53,23 @@ function authMiddleware(req, res, next) {
 
 // POST /api/chat
 app.post('/api/chat', authMiddleware, async (req, res) => {
-  const { message, sessionId } = req.body;
+  const { message, sessionId, userName, conversationId } = req.body;
 
   if (!message || !sessionId) {
     return res.status(400).json({ error: 'message and sessionId required' });
   }
 
+  // Group chat: forward to Telegram, no AI response
+  if (conversationId === 'group') {
+    try {
+      await forwardToTelegram(`${userName || 'User'}: ${message}`);
+    } catch (err) {
+      console.warn('Telegram forward failed:', err.message);
+    }
+    return res.json({ reply: null, mood: 'idle' });
+  }
+
+  // DM chat: get Groq AI response
   const session = getSession(sessionId);
 
   session.messages.push({
@@ -92,12 +103,42 @@ app.post('/api/chat', authMiddleware, async (req, res) => {
       ts: Date.now()
     });
 
+    // Forward DM to Telegram so team can see it
+    if (conversationId === 'dm') {
+      forwardToTelegram(`🔵 [DM] ${userName || 'User'}: ${message}`).catch(err => {
+        console.warn('DM Telegram forward failed:', err.message);
+      });
+    }
+
     res.json({ reply, mood });
   } catch (err) {
     console.error('Groq API error:', err.message);
     res.status(500).json({ error: 'Failed to get response from Mirmi brain' });
   }
 });
+
+// -- Forward text to Telegram -----------------------------------
+async function forwardToTelegram(text) {
+  const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+  const TELEGRAM_TOPIC_ID = process.env.TELEGRAM_TOPIC_ID;
+
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return;
+
+  const body = { chat_id: TELEGRAM_CHAT_ID, text };
+  if (TELEGRAM_TOPIC_ID) body.message_thread_id = parseInt(TELEGRAM_TOPIC_ID);
+
+  const tgRes = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  if (!tgRes.ok) {
+    const errData = await tgRes.text();
+    throw new Error('Telegram sendMessage failed: ' + errData);
+  }
+}
 
 // GET /api/history
 app.get('/api/history', authMiddleware, (req, res) => {

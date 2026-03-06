@@ -15,6 +15,12 @@
 
   const shadow = host.attachShadow({ mode: 'open' });
 
+  // -- Load Google Fonts into shadow root -------------------------
+  const fontLink = document.createElement('link');
+  fontLink.rel = 'stylesheet';
+  fontLink.href = 'https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&display=swap';
+  shadow.appendChild(fontLink);
+
   // -- Load CSS -------------------------------------------------
   const cssUrl = chrome.runtime.getURL('orb.css');
   const link = document.createElement('link');
@@ -107,7 +113,8 @@
           <div class="mirmi-topbar-orb">
             ${sphereHTML(28, 'header')}
           </div>
-          <span class="mirmi-topbar-title">Mirmi</span>
+          <span class="mirmi-topbar-title" id="mirmi-topbar-title">Mirmi</span>
+          <span class="mirmi-topbar-sep">&middot;</span>
           <span class="mirmi-state-text" id="mirmi-state-text">Ready</span>
         </div>
         <div class="mirmi-topbar-actions">
