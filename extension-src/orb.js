@@ -4,9 +4,9 @@
 
 'use strict';
 
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 // CONFIG
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 const BRIDGE_URL = 'https://mirmi-bridge.sekanson.com';
 const API_KEY = 'mirmi-dev-key-2026';
 const SESSION_ID = 'mirmi-' + Math.random().toString(36).slice(2, 10);
@@ -22,9 +22,9 @@ const USER_COLORS = {
   Aamir:  { bg: 'rgba(34,211,238,.15)', border: 'rgba(34,211,238,.3)', text: '#22d3ee', class: 'aamir' },
 };
 
-// ══════════════════════════════════════════════════════════
-// BRIDGE FETCH — route API calls through background worker
-// ══════════════════════════════════════════════════════════
+// ==============================================================
+// BRIDGE FETCH -- route API calls through background worker
+// ==============================================================
 function bridgeFetch(path, method, body) {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(
@@ -61,8 +61,9 @@ function uploadImage(dataUrl, fileName) {
 
 // ══════════════════════════════════════════════════════════
 // STATE
-// ══════════════════════════════════════════════════════════
-let isOpen = false;
+// ==============================================================
+// UI state: 'orb' | 'mini' | 'full'
+let uiState = 'orb';
 let currentMood = 'idle';
 let recognition = null;
 let isListening = false;
@@ -72,17 +73,30 @@ let mouseX = window.innerWidth / 2;
 let mouseY = window.innerHeight / 2;
 let activeConversation = 'group'; // 'group' or 'dm'
 
-// ══════════════════════════════════════════════════════════
+// Active conversation: 'group' | 'dm'
+let activeConv = 'group';
+
+// Message stores per conversation
+const convMessages = {
+  group: [],
+  dm: []
+};
+
+// Unread counts
+const unreadCounts = { group: 0, dm: 0 };
+
+// ==============================================================
 // DOM REFS (from shadow root)
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 const shadowRoot = window.__mirmiShadowRoot;
 const $ = (sel) => shadowRoot.querySelector(sel);
 const $$ = (sel) => shadowRoot.querySelectorAll(sel);
 const $id = (id) => shadowRoot.getElementById(id);
 
 const trigger = $id('mirmi-orb-trigger');
-const overlay = $id('mirmi-chat-overlay');
+const messenger = $id('mirmi-messenger');
 const closeBtn = $id('mirmi-close-btn');
+const expandBtn = $id('mirmi-expand-btn');
 const messagesEl = $id('mirmi-messages');
 const inputEl = $id('mirmi-input');
 const sendBtn = $id('mirmi-send-btn');
@@ -113,22 +127,22 @@ const ringShadows = {
 // MOOD CONFIG — exact from prototype
 // ══════════════════════════════════════════════════════════
 const moodCfg = {
-  idle:   {label:'Ready',       sc:'rgba(100,160,220,.5)',  vol:'rgba(30,80,200,.4)',   rim:'rgba(56,189,248,.20)',  lH:52,lY:74,rH:52,rY:74, dots:false,typing:false,sound:false,listen:false},
-  think:  {label:'Thinking\u2026', sc:'rgba(167,139,250,.8)',  vol:'rgba(60,35,165,.52)',  rim:'rgba(167,139,250,.26)', lH:20,lY:91,rH:54,rY:70, dots:true, typing:false,sound:false,listen:false},
-  gen:    {label:'Generating',  sc:'rgba(251,146,60,.85)',  vol:'rgba(150,35,75,.48)',  rim:'rgba(244,114,182,.22)', lH:60,lY:70,rH:60,rY:70, dots:false,typing:true, sound:false,listen:false},
-  done:   {label:'Complete \u2726',sc:'rgba(52,211,153,.9)',   vol:'rgba(8,105,65,.5)',    rim:'rgba(52,211,153,.26)',  lH:62,lY:69,rH:62,rY:69, dots:false,typing:false,sound:false,listen:false},
-  talk:   {label:'Talking',     sc:'rgba(103,232,249,.9)',  vol:'rgba(6,90,130,.52)',   rim:'rgba(103,232,249,.22)', lH:50,lY:75,rH:50,rY:75, dots:false,typing:false,sound:true, listen:false},
-  listen: {label:'Listening',   sc:'rgba(253,230,138,.9)',  vol:'rgba(110,72,8,.4)',    rim:'rgba(253,230,138,.20)', lH:58,lY:71,rH:58,rY:71, dots:false,typing:false,sound:false,listen:true},
+  idle:   {label:'Ready',        sc:'rgba(100,160,220,.5)',  vol:'rgba(30,80,200,.4)',   rim:'rgba(56,189,248,.20)',  lH:52,lY:74,rH:52,rY:74, dots:false,typing:false,sound:false,listen:false},
+  think:  {label:'Thinking\u2026',sc:'rgba(167,139,250,.8)',  vol:'rgba(60,35,165,.52)',  rim:'rgba(167,139,250,.26)', lH:20,lY:91,rH:54,rY:70, dots:true, typing:false,sound:false,listen:false},
+  gen:    {label:'Generating',   sc:'rgba(251,146,60,.85)',  vol:'rgba(150,35,75,.48)',  rim:'rgba(244,114,182,.22)', lH:60,lY:70,rH:60,rY:70, dots:false,typing:true, sound:false,listen:false},
+  done:   {label:'Complete \u2726',sc:'rgba(52,211,153,.9)',  vol:'rgba(8,105,65,.5)',    rim:'rgba(52,211,153,.26)',  lH:62,lY:69,rH:62,rY:69, dots:false,typing:false,sound:false,listen:false},
+  talk:   {label:'Talking',      sc:'rgba(103,232,249,.9)',  vol:'rgba(6,90,130,.52)',   rim:'rgba(103,232,249,.22)', lH:50,lY:75,rH:50,rY:75, dots:false,typing:false,sound:true, listen:false},
+  listen: {label:'Listening',    sc:'rgba(253,230,138,.9)',  vol:'rgba(110,72,8,.4)',    rim:'rgba(253,230,138,.20)', lH:58,lY:71,rH:58,rY:71, dots:false,typing:false,sound:false,listen:true},
 };
 
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 // ORB INSTANCE MANAGEMENT
 // ══════════════════════════════════════════════════════════
 let orbInstances = [];
 let ringTargetRps = ringShadows.idle.rps;
 
 function createOrbInstance(idPrefix) {
-  const inst = {
+  return {
     idPrefix,
     vol:  $id(idPrefix + '-vol'),
     rim:  $id(idPrefix + '-rim'),
@@ -146,7 +160,6 @@ function createOrbInstance(idPrefix) {
     ringRps: ringShadows.idle.rps,
     curPX: 0, curPY: 0,
   };
-  return inst;
 }
 
 function applyMoodToOrb(inst, name) {
@@ -202,7 +215,7 @@ function drawMoodBg(blend) {
 }
 
 function resizeMoodCanvas() {
-  const rect = overlay.getBoundingClientRect();
+  const rect = messenger.getBoundingClientRect();
   if (rect.width > 0 && rect.height > 0) {
     moodCanvas.width = rect.width;
     moodCanvas.height = rect.height;
@@ -332,20 +345,16 @@ function frame() {
       const trigCY = trigRect.top + trigRect.height / 2;
       const dx = mouseX - trigCX;
       const dy = mouseY - trigCY;
-      const ndxTrig = Math.max(-1, Math.min(1, dx / 200));
-      const ndyTrig = Math.max(-1, Math.min(1, dy / 200));
-      miniPX = ndxTrig * 22;
-      miniPY = ndyTrig * 18;
+      miniPX = Math.max(-1, Math.min(1, dx / 200)) * 22;
+      miniPY = Math.max(-1, Math.min(1, dy / 200)) * 18;
     } else {
       const orbEl = inst.ring?.closest ? inst.ring.closest('.mini-mirmi') : null;
       if (orbEl) {
         const rect = orbEl.getBoundingClientRect();
         const ocx = rect.left + rect.width / 2;
         const ocy = rect.top + rect.height / 2;
-        const dx2 = mouseX - ocx;
-        const dy2 = mouseY - ocy;
-        miniPX = Math.max(-1, Math.min(1, dx2 / 300)) * 18;
-        miniPY = Math.max(-1, Math.min(1, dy2 / 300)) * 14;
+        miniPX = Math.max(-1, Math.min(1, (mouseX - ocx) / 300)) * 18;
+        miniPY = Math.max(-1, Math.min(1, (mouseY - ocy) / 300)) * 14;
       } else {
         miniPX = ndx * 18;
         miniPY = ndy * 14;
@@ -415,9 +424,9 @@ function frame() {
   requestAnimationFrame(frame);
 }
 
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 // MOUSE TRACKING
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
 document.addEventListener('touchmove', e => {
   if (e.touches.length > 0) { mouseX = e.touches[0].clientX; mouseY = e.touches[0].clientY; }
@@ -425,7 +434,7 @@ document.addEventListener('touchmove', e => {
 
 // ══════════════════════════════════════════════════════════
 // CREATE MINI MIRMI FOR CHAT AVATARS
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 let msgOrbCount = 0;
 
 function createMiniMirmiEl(size) {
@@ -677,9 +686,140 @@ function addMessage(role, content, senderName, timestamp, imageUrl) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+function createAvatarEl(name, useMirmiOrb) {
+  if (useMirmiOrb && name === 'Mirmi') {
+    return createMiniMirmiEl(28);
+  }
+  const info = getAvatarInfo(name);
+  const el = document.createElement('div');
+  el.className = 'msg-avatar-circle ' + info.class;
+  el.textContent = info.letter;
+  return el;
+}
+
+// ==============================================================
+// RENDER MESSAGES
+// ==============================================================
+function scrollToBottom() {
+  requestAnimationFrame(() => {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  });
+}
+
+function renderMessages() {
+  messagesEl.innerHTML = '';
+  const msgs = convMessages[activeConv] || [];
+  let lastSender = null;
+
+  msgs.forEach((msg, i) => {
+    const isMe = msg.from === USER_NAME;
+
+    // Show sender label when sender changes
+    if (msg.from !== lastSender) {
+      const label = document.createElement('div');
+      label.className = 'msg-group-label';
+      label.textContent = isMe ? 'You' : (msg.from || 'Unknown');
+      messagesEl.appendChild(label);
+      lastSender = msg.from;
+    }
+
+    const row = document.createElement('div');
+    row.className = 'msg-row ' + (isMe ? 'user' : 'other');
+
+    // Avatar
+    const avatar = createAvatarEl(msg.from, !isMe);
+    row.appendChild(avatar);
+
+    // Content column
+    const col = document.createElement('div');
+
+    // Bubble
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    if (msg.text) bubble.textContent = msg.text;
+
+    // Image
+    if (msg.imageUrl) {
+      const img = document.createElement('img');
+      img.className = 'msg-image';
+      img.src = msg.imageUrl;
+      img.alt = 'Image';
+      col.appendChild(img);
+    }
+
+    if (msg.text) col.appendChild(bubble);
+
+    // Timestamp
+    if (msg.timestamp) {
+      const time = document.createElement('div');
+      time.className = 'msg-time';
+      const d = new Date(msg.timestamp);
+      time.textContent = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      col.appendChild(time);
+    }
+
+    row.appendChild(col);
+    messagesEl.appendChild(row);
+  });
+
+  scrollToBottom();
+}
+
+function addMessageToConv(conv, msg) {
+  convMessages[conv].push(msg);
+  if (conv === activeConv) {
+    renderMessages();
+  } else {
+    // Increment unread
+    unreadCounts[conv]++;
+    updateBadges();
+  }
+}
+
+// ==============================================================
+// CONVERSATION SWITCHING
+// ==============================================================
+function switchConversation(conv) {
+  if (conv === activeConv) return;
+  activeConv = conv;
+  unreadCounts[conv] = 0;
+  updateBadges();
+
+  // Update active card
+  convList.querySelectorAll('.mirmi-conv-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.conv === conv);
+  });
+
+  renderMessages();
+}
+
+function updateBadges() {
+  ['group', 'dm'].forEach(conv => {
+    const badge = $id('mirmi-badge-' + conv);
+    if (!badge) return;
+    if (unreadCounts[conv] > 0) {
+      badge.textContent = unreadCounts[conv];
+      badge.style.display = 'flex';
+    } else {
+      badge.style.display = 'none';
+    }
+  });
+}
+
+// Conversation click handlers
+convList.addEventListener('click', (e) => {
+  const card = e.target.closest('.mirmi-conv-card');
+  if (card && card.dataset.conv) {
+    switchConversation(card.dataset.conv);
+  }
+});
+
+// ==============================================================
+// TYPING INDICATOR IN CHAT
+// ==============================================================
 function showTyping() {
   const row = document.createElement('div');
-  row.className = 'msg-row mirmi';
+  row.className = 'msg-row other';
   row.id = 'mirmi-typing';
 
   const avatar = createAvatar('Mirmi', true);
@@ -695,7 +835,7 @@ function showTyping() {
   row.appendChild(col);
 
   messagesEl.appendChild(row);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+  scrollToBottom();
 }
 
 function hideTyping() {
@@ -745,7 +885,7 @@ function addTelegramMessage(msg) {
 
 // ══════════════════════════════════════════════════════════
 // SEND MESSAGE
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 async function sendMessage(text) {
   if (!text || !text.trim()) return;
   text = text.trim();
@@ -798,9 +938,54 @@ async function sendMessage(text) {
   }
 }
 
-// ══════════════════════════════════════════════════════════
+// ==============================================================
+// IMAGE UPLOAD
+// ==============================================================
+attachBtn.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) {
+    addMessageToConv(activeConv, {
+      from: 'Mirmi',
+      text: 'Image too large. Max 10MB.',
+      timestamp: Date.now(),
+    });
+    fileInput.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result;
+
+    // Show preview locally
+    addMessageToConv(activeConv, {
+      from: USER_NAME,
+      text: '',
+      timestamp: Date.now(),
+      imageUrl: dataUrl,
+    });
+
+    // Upload via background script
+    chrome.runtime.sendMessage({
+      type: 'uploadImage',
+      dataUrl: dataUrl,
+      fileName: file.name,
+    }, (resp) => {
+      if (chrome.runtime.lastError) {
+        console.warn('Upload error:', chrome.runtime.lastError.message);
+      }
+    });
+  };
+  reader.readAsDataURL(file);
+  fileInput.value = '';
+});
+
+// ==============================================================
 // INPUT HANDLERS
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 sendBtn.addEventListener('click', () => sendMessage(inputEl.value));
 
 inputEl.addEventListener('keydown', (e) => {
@@ -889,7 +1074,7 @@ if (attachBtn && fileInput) {
 
 // ══════════════════════════════════════════════════════════
 // VOICE INPUT (Web Speech API)
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 function startListening() {
   stopSpeaking();
   if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -934,9 +1119,9 @@ micBtn.addEventListener('click', () => {
   isListening ? stopListening() : startListening();
 });
 
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 // TTS (ElevenLabs via bridge, fallback to Web Speech)
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 async function speak(text, onEnd) {
   isSpeaking = true;
   try {
@@ -986,9 +1171,56 @@ function stopSpeaking() {
   isSpeaking = false;
 }
 
-// ══════════════════════════════════════════════════════════
+// ==============================================================
+// IDENTITY PICKER
+// ==============================================================
+function showIdentityPicker() {
+  identityOverlay.style.display = 'flex';
+
+  // Register identity orb instance
+  requestAnimationFrame(() => {
+    const idInst = createOrbInstance('identity');
+    orbInstances.push(idInst);
+    applyMoodToOrb(idInst, currentMood);
+  });
+}
+
+function hideIdentityPicker() {
+  identityOverlay.style.display = 'none';
+}
+
+function setIdentity(name) {
+  USER_NAME = name;
+  const info = getAvatarInfo(name);
+  USER_LETTER = info.letter;
+  USER_COLOR = name === 'Hammad' ? '#3b82f6' : name === 'Tiago' ? '#8b5cf6' : '#f59e0b';
+  chrome.storage.local.set({ mirmiUser: { name, letter: USER_LETTER, color: USER_COLOR } });
+}
+
+identityOverlay.addEventListener('click', (e) => {
+  const btn = e.target.closest('.mirmi-identity-btn');
+  if (!btn) return;
+  const name = btn.dataset.name;
+  setIdentity(name);
+  hideIdentityPicker();
+});
+
+function loadIdentity(callback) {
+  chrome.storage.local.get('mirmiUser', (result) => {
+    if (result.mirmiUser && result.mirmiUser.name) {
+      USER_NAME = result.mirmiUser.name;
+      USER_LETTER = result.mirmiUser.letter || USER_NAME.charAt(0);
+      USER_COLOR = result.mirmiUser.color || '#005dff';
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+}
+
+// ==============================================================
 // INIT
-// ══════════════════════════════════════════════════════════
+// ==============================================================
 requestAnimationFrame(() => {
   // Create orb instances for trigger, header, sidebar, identity
   const trigInst = createOrbInstance('trig');
@@ -1024,11 +1256,33 @@ requestAnimationFrame(() => {
 
   // Start frame loop
   frame();
+
+  // Load orb position
+  loadOrbPosition((x, y) => {
+    setOrbPosition(x, y);
+  });
+
+  // Load identity
+  loadIdentity((found) => {
+    if (!found) {
+      showIdentityPicker();
+    }
+    // Start polling regardless (will use whatever identity is set)
+    startPolling();
+  });
 });
 
-// Resize moodBg on window resize
+// Resize handlers
 window.addEventListener('resize', () => {
-  if (isOpen) resizeMoodCanvas();
+  if (uiState !== 'orb') resizeMoodCanvas();
+  // Re-clamp orb position
+  if (orbX !== undefined) {
+    setOrbPosition(orbX, orbY);
+  }
+  // Reposition panel in mini mode
+  if (uiState === 'mini') {
+    positionMessengerPanel();
+  }
 });
 
 console.log('Mirmi Messenger v2 loaded.');

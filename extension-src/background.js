@@ -1,11 +1,12 @@
-/* ── Mirmi Messenger - background.js (MV3 Service Worker) ── */
-/* Relays fetch requests from content scripts to bypass CORS  */
+/* -- Mirmi Messenger v2 - background.js (MV3 Service Worker) --- */
+/* Relays fetch requests from content scripts to bypass CORS      */
+/* Handles image upload relay                                     */
 
 const BRIDGE_URL = 'https://mirmi-bridge.sekanson.com';
 const API_KEY    = 'mirmi-dev-key-2026';
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('Mirmi Messenger installed.');
+  console.log('Mirmi Messenger v2 installed.');
 });
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {

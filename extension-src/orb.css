@@ -23,8 +23,8 @@
   --shadow-color: rgba(0,0,0,.6);
   --accent: rgba(56,189,248,1);
   --accent-glow: rgba(56,189,248,.15);
-  --bg-mood-a: #0b1a3d;
-  --bg-mood-b: #030610;
+  --sidebar-w: 120px;
+  --sidebar-w-full: 240px;
 }
 
 *, *::before, *::after {
@@ -130,6 +130,14 @@
   0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-3px); }
 }
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(.95); }
+  to { opacity: 1; transform: none; }
+}
 
 /* ══════════════════════════════════════════════════════════════ */
 /* IDENTITY PICKER                                               */
@@ -206,17 +214,24 @@
   height: 56px;
   z-index: 2147483646;
   cursor: pointer;
-  transition: transform .3s cubic-bezier(.34,1.5,.64,1);
   filter: drop-shadow(0 4px 20px rgba(0,100,255,.4));
   animation: orbFloat 4s ease-in-out infinite;
+  transition: opacity .3s ease, visibility .3s ease;
+  user-select: none;
+  -webkit-user-select: none;
 }
 #mirmi-orb-trigger:hover { transform: scale(1.12); animation-play-state: paused; }
-#mirmi-orb-trigger:active { transform: scale(.92); animation-play-state: paused; }
+#mirmi-orb-trigger:active { animation-play-state: paused; }
+#mirmi-orb-trigger.dragging {
+  animation: none !important;
+  cursor: grabbing;
+  transition: none;
+}
+#mirmi-orb-trigger.dragging:hover { transform: none; }
 #mirmi-orb-trigger.hidden {
   pointer-events: none;
   opacity: 0;
-  transform: scale(.5);
-  transition: all .3s ease;
+  visibility: hidden;
 }
 
 /* ══════════════════════════════════════════════════════════════ */
@@ -239,11 +254,16 @@
   opacity: 0;
   pointer-events: none;
   transform: translateY(20px) scale(.95);
-  transition: opacity .3s ease, transform .3s cubic-bezier(.34,1.4,.64,1);
+  transition: opacity .3s ease, transform .3s cubic-bezier(.34,1.4,.64,1), width .3s ease, height .3s ease, top .3s ease, left .3s ease, right .3s ease, bottom .3s ease, border-radius .3s ease;
   font-family: 'Sora', sans-serif;
   color: var(--text-primary);
+  /* Default mini position - set by JS */
+  width: 380px;
+  height: 580px;
+  border-radius: 20px;
 }
-#mirmi-chat-overlay.open {
+
+.mirmi-messenger.open {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0) scale(1);
@@ -446,7 +466,7 @@
   transition: all .2s;
   z-index: 2;
 }
-.mirmi-chat-close:hover {
+.mirmi-topbar-btn:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
 }
@@ -479,8 +499,8 @@
   font-weight: 500;
   letter-spacing: .2em;
   text-transform: uppercase;
+  letter-spacing: .15em;
   color: var(--text-muted);
-  transition: color .5s;
 }
 
 /* ── Messages Area ──────────────────────────────────────────── */
@@ -498,6 +518,7 @@
 .mirmi-messages::-webkit-scrollbar-track { background: transparent; }
 .mirmi-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 3px; }
 
+/* -- Message rows ---------------------------------------------- */
 .msg-row {
   display: flex;
   align-items: flex-start;
@@ -530,7 +551,32 @@
   font-size: .55rem;
   font-weight: 600;
   font-family: 'Sora', sans-serif;
-  letter-spacing: .04em;
+  margin-top: 2px;
+}
+.msg-avatar-circle.avatar-mirmi {
+  background: rgba(52,211,153,.15);
+  color: #34d399;
+  border: 1px solid rgba(52,211,153,.25);
+}
+.msg-avatar-circle.avatar-hammad {
+  background: rgba(59,130,246,.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59,130,246,.25);
+}
+.msg-avatar-circle.avatar-tiago {
+  background: rgba(139,92,246,.15);
+  color: #a78bfa;
+  border: 1px solid rgba(139,92,246,.25);
+}
+.msg-avatar-circle.avatar-aamir {
+  background: rgba(245,158,11,.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245,158,11,.25);
+}
+.msg-avatar-circle.avatar-user {
+  background: rgba(0,93,255,.15);
+  color: rgba(100,160,255,.7);
+  border: 1px solid rgba(0,93,255,.25);
 }
 
 /* User-specific avatar colors */

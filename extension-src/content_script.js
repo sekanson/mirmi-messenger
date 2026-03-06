@@ -7,7 +7,7 @@
   // Prevent double-injection
   if (document.getElementById('mirmi-messenger-host')) return;
 
-  // ── Create host element with shadow DOM ─────────────────
+  // -- Create host element with shadow DOM ----------------------
   const host = document.createElement('div');
   host.id = 'mirmi-messenger-host';
   host.style.cssText = 'position:fixed;z-index:2147483647;top:0;left:0;width:0;height:0;pointer-events:none;';
@@ -15,14 +15,14 @@
 
   const shadow = host.attachShadow({ mode: 'open' });
 
-  // ── Load CSS ────────────────────────────────────────────
+  // -- Load CSS -------------------------------------------------
   const cssUrl = chrome.runtime.getURL('orb.css');
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = cssUrl;
   shadow.appendChild(link);
 
-  // ── Sphere markup helper (exact prototype mini-mirmi structure) ──
+  // -- Sphere markup helper (exact prototype mini-mirmi structure) --
   function sphereHTML(size, idPrefix) {
     return `
       <div class="mini-mirmi" style="width:${size}px;height:${size}px;">
@@ -63,7 +63,7 @@
     `;
   }
 
-  // ── Build DOM ───────────────────────────────────────────
+  // -- Build DOM ------------------------------------------------
   const container = document.createElement('div');
   container.style.cssText = 'pointer-events:auto;';
   container.innerHTML = `
@@ -173,6 +173,9 @@
           </div>
         </div>
       </div>
+
+      <!-- Hidden file input for image upload -->
+      <input type="file" id="mirmi-file-input" accept="image/*" style="display:none;" />
     </div>
   `;
 

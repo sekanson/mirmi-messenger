@@ -1,5 +1,5 @@
-/* ── Mirmi Bridge Server ─────────────────────────────────── */
-/* Express API bridge between Chrome extension and Groq        */
+/* -- Mirmi Bridge Server v2 ------------------------------------ */
+/* Express API bridge between Chrome extension and Groq/Telegram  */
 
 require('dotenv').config();
 const express = require('express');
@@ -10,23 +10,23 @@ const app = express();
 const PORT = process.env.PORT || 3131;
 const MIRMI_API_KEY = process.env.MIRMI_API_KEY || 'mirmi-dev-key-2026';
 
-// ── Groq client (OpenAI-compatible) ──────────────────────
+// -- Groq client (OpenAI-compatible) ---------------------------
 const groq = new OpenAI({
   apiKey: process.env.GROQ_API_KEY,
   baseURL: 'https://api.groq.com/openai/v1'
 });
 
-// ── Mirmi system prompt ───────────────────────────────────
+// -- Mirmi system prompt ----------------------------------------
 const SYSTEM_PROMPT = `You are Mirmi, an AI assistant and digital familiar for the xix3D team.
 You are helpful, direct, and have a personality. You're the glue connecting
 all xix3D products. Be concise - this is a chat interface, not an essay.
 Never use em dashes. Have opinions. Skip filler phrases.`;
 
-// ── In-memory message store (Telegram sync) ─────────────
+// -- In-memory message store (Telegram sync) --------------------
 const messages = [];
 let sseClients = [];
 
-// ── In-memory session store ───────────────────────────────
+// -- In-memory session store ------------------------------------
 const sessions = new Map();
 
 function getSession(sessionId) {
@@ -36,9 +36,9 @@ function getSession(sessionId) {
   return sessions.get(sessionId);
 }
 
-// ── Middleware ─────────────────────────────────────────────
+// -- Middleware --------------------------------------------------
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 // Auth check
 function authMiddleware(req, res, next) {
@@ -49,7 +49,7 @@ function authMiddleware(req, res, next) {
   next();
 }
 
-// ── Routes ────────────────────────────────────────────────
+// -- Routes -----------------------------------------------------
 
 // POST /api/chat
 app.post('/api/chat', authMiddleware, async (req, res) => {
@@ -116,7 +116,7 @@ app.get('/api/history', authMiddleware, (req, res) => {
   res.json({ messages: session.messages });
 });
 
-// POST /api/speak — ElevenLabs TTS
+// POST /api/speak -- ElevenLabs TTS
 app.post('/api/speak', authMiddleware, async (req, res) => {
   const { text, sessionId } = req.body;
 
@@ -160,9 +160,9 @@ app.post('/api/speak', authMiddleware, async (req, res) => {
   }
 });
 
-// ── Telegram Real-Time Messaging ─────────────────────────
+// -- Telegram Real-Time Messaging --------------------------------
 
-// POST /api/message — ingest a Telegram message
+// POST /api/message -- ingest a Telegram message
 app.post('/api/message', authMiddleware, (req, res) => {
   const { id, from, text, timestamp, chatId, replyTo, conversationId } = req.body;
 
@@ -184,7 +184,7 @@ app.post('/api/message', authMiddleware, (req, res) => {
   res.json({ ok: true });
 });
 
-// GET /api/messages — fetch messages since timestamp
+// GET /api/messages -- fetch messages since timestamp
 app.get('/api/messages', authMiddleware, (req, res) => {
   const since = Number(req.query.since) || 0;
   const limit = Math.min(Number(req.query.limit) || 50, 100);
@@ -196,7 +196,7 @@ app.get('/api/messages', authMiddleware, (req, res) => {
   res.json({ messages: filtered });
 });
 
-// GET /api/messages/stream — Server-Sent Events
+// GET /api/messages/stream -- Server-Sent Events
 app.get('/api/messages/stream', authMiddleware, (req, res) => {
   res.set({
     'Content-Type': 'text/event-stream',
@@ -313,10 +313,89 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'mirmi-bridge' });
 });
 
-// ── Start ─────────────────────────────────────────────────
+// -- NEW: POST /api/upload-image --------------------------------
+app.post('/api/upload-image', authMiddleware, async (req, res) => {
+  const { dataUrl, fileName } = req.body;
+
+  if (!dataUrl) {
+    return res.status(400).json({ error: 'dataUrl required' });
+  }
+
+  const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+  const TELEGRAM_TOPIC_ID = process.env.TELEGRAM_TOPIC_ID;
+
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    return res.status(500).json({ error: 'Telegram bot not configured' });
+  }
+
+  try {
+    // Extract base64 data from data URL
+    const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!matches) {
+      return res.status(400).json({ error: 'Invalid dataUrl format' });
+    }
+
+    const mimeType = matches[1];
+    const base64Data = matches[2];
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    // Determine file extension
+    const ext = mimeType.split('/')[1] || 'jpg';
+    const finalName = fileName || ('image.' + ext);
+
+    // Build multipart form data manually
+    const boundary = '----MirmiBoundary' + Date.now();
+    const parts = [];
+
+    // chat_id
+    parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="chat_id"\r\n\r\n${TELEGRAM_CHAT_ID}`);
+
+    // message_thread_id (topic)
+    if (TELEGRAM_TOPIC_ID) {
+      parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="message_thread_id"\r\n\r\n${parseInt(TELEGRAM_TOPIC_ID)}`);
+    }
+
+    // photo file
+    parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="photo"; filename="${finalName}"\r\nContent-Type: ${mimeType}\r\n\r\n`);
+
+    const header = Buffer.from(parts.join('\r\n') + '\r\n', 'utf-8');
+    const footer = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf-8');
+    const body = Buffer.concat([header, buffer, footer]);
+
+    const tgUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
+    const tgRes = await fetch(tgUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'Content-Length': body.length.toString()
+      },
+      body: body
+    });
+
+    const tgData = await tgRes.json();
+
+    if (!tgData.ok) {
+      console.error('Telegram sendPhoto error:', tgData);
+      return res.status(502).json({ error: 'Telegram upload failed: ' + (tgData.description || 'unknown') });
+    }
+
+    res.json({ ok: true, telegramResult: tgData.result });
+  } catch (err) {
+    console.error('Upload image error:', err.message);
+    res.status(500).json({ error: 'Image upload failed: ' + err.message });
+  }
+});
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', service: 'mirmi-bridge', version: '2.0.0' });
+});
+
+// -- Start ------------------------------------------------------
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`Mirmi bridge running on port ${PORT}`);
+    console.log(`Mirmi bridge v2 running on port ${PORT}`);
   });
 }
 
