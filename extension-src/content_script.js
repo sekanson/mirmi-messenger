@@ -1,4 +1,4 @@
-/* -- Mirmi Messenger v2 - content_script.js -------------------- */
+/* -- Mirmi Messenger v26 - content_script.js ------------------- */
 /* Injects orb + messenger UI into every page via shadow DOM      */
 
 (function() {
@@ -18,7 +18,7 @@
   // -- Load Google Fonts into shadow root -------------------------
   const fontLink = document.createElement('link');
   fontLink.rel = 'stylesheet';
-  fontLink.href = 'https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&display=swap';
+  fontLink.href = 'https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap';
   shadow.appendChild(fontLink);
 
   // -- Load CSS -------------------------------------------------
@@ -103,11 +103,27 @@
       ${sphereHTML(56, 'trig')}
     </div>
 
-    <!-- Messenger panel (mini + fullscreen states) -->
+    <!-- Dim overlay for windowed state -->
+    <div id="mirmi-dim-overlay" class="mirmi-dim-overlay"></div>
+
+    <!-- Messenger panel (mini + windowed states) -->
     <div id="mirmi-messenger" class="mirmi-messenger">
       <canvas id="mirmi-mood-bg"></canvas>
 
-      <!-- Top bar -->
+      <!-- Titlebar (visible in windowed mode only) -->
+      <div class="mirmi-titlebar" id="mirmi-titlebar">
+        <span class="mirmi-titlebar-text">Mirmi Messenger</span>
+        <div class="mirmi-titlebar-actions">
+          <button class="mirmi-titlebar-btn" id="mirmi-minimize-btn" title="Minimize">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>
+          </button>
+          <button class="mirmi-titlebar-btn mirmi-titlebar-close" id="mirmi-titlebar-close-btn" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Top bar (chat header) -->
       <div class="mirmi-topbar">
         <div class="mirmi-topbar-left">
           <div class="mirmi-topbar-orb">
@@ -187,6 +203,25 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Resize edge handles (windowed mode) -->
+      <div class="mirmi-resize-edge mirmi-resize-n" data-dir="n"></div>
+      <div class="mirmi-resize-edge mirmi-resize-s" data-dir="s"></div>
+      <div class="mirmi-resize-edge mirmi-resize-e" data-dir="e"></div>
+      <div class="mirmi-resize-edge mirmi-resize-w" data-dir="w"></div>
+      <div class="mirmi-resize-edge mirmi-resize-ne" data-dir="ne"></div>
+      <div class="mirmi-resize-edge mirmi-resize-nw" data-dir="nw"></div>
+      <div class="mirmi-resize-edge mirmi-resize-se" data-dir="se"></div>
+      <div class="mirmi-resize-edge mirmi-resize-sw" data-dir="sw"></div>
+
+      <!-- Resize grip (mini mode only) -->
+      <div class="mirmi-resize-grip" id="mirmi-resize-grip">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="1.2" stroke-linecap="round">
+          <line x1="11" y1="3" x2="3" y2="11"/>
+          <line x1="11" y1="7" x2="7" y2="11"/>
+          <line x1="11" y1="11" x2="11" y2="11"/>
+        </svg>
       </div>
 
       <!-- Hidden file input for image upload -->

@@ -1,4 +1,4 @@
-/* -- Mirmi Messenger v2 - orb.js ------------------------------- */
+/* -- Mirmi Messenger v26 - orb.js ------------------------------ */
 /* Three-state UI, draggable orb, messenger, identity picker      */
 /* Preserves: sphere engine, mood system, eye tracking, TTS       */
 
@@ -39,7 +39,7 @@ function bridgeFetch(path, method, body) {
 // ==============================================================
 // STATE
 // ==============================================================
-// UI state: 'orb' | 'mini' | 'full'
+// UI state: 'orb' | 'mini' | 'windowed'
 let uiState = 'orb';
 let currentMood = 'idle';
 let recognition = null;
@@ -60,6 +60,14 @@ const convMessages = {
 
 // Unread counts
 const unreadCounts = { group: 0, dm: 0 };
+
+// Windowed state geometry
+let windowedX, windowedY, windowedW, windowedH;
+
+// Mini resize limits
+const MINI_MIN_W = 300, MINI_MIN_H = 400;
+const MINI_MAX_W = 500, MINI_MAX_H = 680;
+const WINDOWED_MIN_W = 480, WINDOWED_MIN_H = 360;
 
 // ==============================================================
 // DOM REFS (from shadow root)
@@ -85,6 +93,11 @@ const identityOverlay = $id('mirmi-identity-overlay');
 const convList = $id('mirmi-conv-list');
 const sidebar = $id('mirmi-sidebar');
 const topbarTitle = $id('mirmi-topbar-title');
+const dimOverlay = $id('mirmi-dim-overlay');
+const titlebar = $id('mirmi-titlebar');
+const minimizeBtn = $id('mirmi-minimize-btn');
+const titlebarCloseBtn = $id('mirmi-titlebar-close-btn');
+const resizeGrip = $id('mirmi-resize-grip');
 
 // Conversation display names
 const convNames = { group: 'Mirmi Group', dm: 'Mirmi DM' };
@@ -550,8 +563,8 @@ function positionMessengerPanel() {
   messenger.style.left = 'auto';
   messenger.style.right = 'auto';
 
-  const panelW = 380;
-  const panelH = 580;
+  const panelW = messenger.offsetWidth || 380;
+  const panelH = messenger.offsetHeight || 580;
 
   // Vertical: align bottom of panel with bottom of orb, clamped to viewport
   let top = orbY + 56 - panelH;
@@ -569,13 +582,31 @@ function positionMessengerPanel() {
   }
 }
 
+// -- Save/load helpers for mini size and windowed state ----------
+function saveMiniSize() {
+  chrome.storage.local.set({ mirmiMiniSize: { w: messenger.offsetWidth, h: messenger.offsetHeight } });
+}
+function loadMiniSize(cb) {
+  chrome.storage.local.get('mirmiMiniSize', r => cb(r.mirmiMiniSize || {}));
+}
+function saveWindowedState() {
+  chrome.storage.local.set({ mirmiWindowedState: { x: windowedX, y: windowedY, w: windowedW, h: windowedH } });
+}
+function loadWindowedState(cb) {
+  chrome.storage.local.get('mirmiWindowedState', r => cb(r.mirmiWindowedState || {}));
+}
+
+// -- Three-state transitions ------------------------------------
 function openMini() {
-  if (uiState === 'mini' || uiState === 'full') return;
+  if (uiState === 'mini' || uiState === 'windowed') return;
   uiState = 'mini';
-  messenger.classList.remove('fullscreen');
-  messenger.style.width = '380px';
-  messenger.style.height = '580px';
-  positionMessengerPanel();
+  messenger.classList.remove('windowed');
+  dimOverlay.classList.remove('visible');
+  loadMiniSize(size => {
+    messenger.style.width = (size.w || 380) + 'px';
+    messenger.style.height = (size.h || 580) + 'px';
+    positionMessengerPanel();
+  });
   messenger.classList.add('open');
   trigger.classList.add('hidden');
   inputEl.focus();
@@ -583,46 +614,152 @@ function openMini() {
   scrollToBottom();
 }
 
-function openFull() {
-  uiState = 'full';
-  messenger.classList.add('fullscreen');
-  messenger.classList.add('open');
+function openWindowed() {
+  uiState = 'windowed';
+  messenger.classList.add('windowed', 'open');
+  dimOverlay.classList.add('visible');
   trigger.classList.add('hidden');
+
+  loadWindowedState(state => {
+    const w = state.w || 760;
+    const h = state.h || 540;
+    const x = (state.x != null) ? state.x : (window.innerWidth - w) / 2;
+    const y = (state.y != null) ? state.y : (window.innerHeight - h) / 2;
+
+    windowedW = w; windowedH = h; windowedX = x; windowedY = y;
+    messenger.style.width = w + 'px';
+    messenger.style.height = h + 'px';
+    messenger.style.left = x + 'px';
+    messenger.style.top = y + 'px';
+    requestAnimationFrame(resizeMoodCanvas);
+  });
+
   inputEl.focus();
-  requestAnimationFrame(resizeMoodCanvas);
   scrollToBottom();
 }
 
 function closeMini() {
   uiState = 'orb';
-  messenger.classList.remove('open', 'fullscreen');
+  messenger.classList.remove('open', 'windowed');
+  dimOverlay.classList.remove('visible');
   trigger.classList.remove('hidden');
   stopListening();
 }
 
 function collapseToMini() {
-  if (uiState !== 'full') return;
+  if (uiState !== 'windowed') return;
   uiState = 'mini';
-  messenger.classList.remove('fullscreen');
-  messenger.style.width = '380px';
-  messenger.style.height = '580px';
-  positionMessengerPanel();
-  requestAnimationFrame(resizeMoodCanvas);
+  messenger.classList.remove('windowed');
+  dimOverlay.classList.remove('visible');
+  loadMiniSize(size => {
+    messenger.style.width = (size.w || 380) + 'px';
+    messenger.style.height = (size.h || 580) + 'px';
+    positionMessengerPanel();
+    requestAnimationFrame(resizeMoodCanvas);
+  });
 }
 
-// Button handlers
+// -- Button handlers -------------------------------------------
 closeBtn.addEventListener('click', closeMini);
 expandBtn.addEventListener('click', () => {
-  if (uiState === 'mini') openFull();
-  else if (uiState === 'full') collapseToMini();
+  if (uiState === 'mini') openWindowed();
+  else if (uiState === 'windowed') collapseToMini();
 });
+if (minimizeBtn) minimizeBtn.addEventListener('click', collapseToMini);
+if (titlebarCloseBtn) titlebarCloseBtn.addEventListener('click', closeMini);
+if (dimOverlay) dimOverlay.addEventListener('click', closeMini);
 
-// Escape key: full -> mini
+// Escape key: windowed -> mini
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && uiState === 'full') {
+  if (e.key === 'Escape' && uiState === 'windowed') {
     collapseToMini();
   }
 });
+
+// -- Draggable titlebar (windowed mode) -------------------------
+if (titlebar) {
+  titlebar.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.mirmi-titlebar-btn')) return;
+    if (uiState !== 'windowed') return;
+    e.preventDefault();
+    const startX = e.clientX, startY = e.clientY;
+    const origX = windowedX, origY = windowedY;
+
+    function onMove(ev) {
+      windowedX = origX + ev.clientX - startX;
+      windowedY = origY + ev.clientY - startY;
+      messenger.style.left = windowedX + 'px';
+      messenger.style.top = windowedY + 'px';
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      saveWindowedState();
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+// -- Windowed resize from edges/corners -------------------------
+shadowRoot.querySelectorAll('.mirmi-resize-edge').forEach(handle => {
+  handle.addEventListener('mousedown', (e) => {
+    if (uiState !== 'windowed') return;
+    e.preventDefault();
+    e.stopPropagation();
+    const dir = handle.dataset.dir;
+    const startX = e.clientX, startY = e.clientY;
+    const oW = windowedW, oH = windowedH, oX = windowedX, oY = windowedY;
+
+    function onMove(ev) {
+      const dx = ev.clientX - startX, dy = ev.clientY - startY;
+      let nW = oW, nH = oH, nX = oX, nY = oY;
+      if (dir.includes('e')) nW = Math.max(WINDOWED_MIN_W, oW + dx);
+      if (dir.includes('w')) { nW = Math.max(WINDOWED_MIN_W, oW - dx); nX = oX + oW - nW; }
+      if (dir.includes('s')) nH = Math.max(WINDOWED_MIN_H, oH + dy);
+      if (dir.includes('n')) { nH = Math.max(WINDOWED_MIN_H, oH - dy); nY = oY + oH - nH; }
+      windowedW = nW; windowedH = nH; windowedX = nX; windowedY = nY;
+      messenger.style.width = nW + 'px';
+      messenger.style.height = nH + 'px';
+      messenger.style.left = nX + 'px';
+      messenger.style.top = nY + 'px';
+      resizeMoodCanvas();
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      saveWindowedState();
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+});
+
+// -- Mini resize grip -------------------------------------------
+if (resizeGrip) {
+  resizeGrip.addEventListener('mousedown', (e) => {
+    if (uiState !== 'mini') return;
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX, startY = e.clientY;
+    const oW = messenger.offsetWidth, oH = messenger.offsetHeight;
+
+    function onMove(ev) {
+      const nW = Math.max(MINI_MIN_W, Math.min(MINI_MAX_W, oW + ev.clientX - startX));
+      const nH = Math.max(MINI_MIN_H, Math.min(MINI_MAX_H, oH + ev.clientY - startY));
+      messenger.style.width = nW + 'px';
+      messenger.style.height = nH + 'px';
+      resizeMoodCanvas();
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      saveMiniSize();
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
 
 // ==============================================================
 // CREATE MINI MIRMI FOR CHAT AVATARS
@@ -769,6 +906,7 @@ function renderMessages() {
 
     // Content column
     const col = document.createElement('div');
+    col.className = 'msg-col';
 
     // Image
     if (msg.imageUrl) {
@@ -1249,4 +1387,4 @@ window.addEventListener('resize', () => {
   }
 });
 
-console.log('Mirmi Messenger v25 loaded.');
+console.log('Mirmi Messenger v26 loaded.');
